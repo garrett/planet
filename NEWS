@@ -1,0 +1,30 @@
+1.0.0	xxxx-xx-xx  Scott James Remnant  <scott@netsplit.com>
+
+	* NEW CACHE FORMAT.  YOU WILL NEED TO WIPE YOUR CACHE DIRECTORY.
+
+	  If upgrading a Planet from 0.2 to 1.0 I recommend setting
+	  new_feed_items=0 in your config.ini for the initial run, then
+	  choosing a sensible or default value for subsequent runs.
+
+	* Updated to Universal Feed Parser 3.3.
+
+	* The following new config.ini options were added:
+	  - new_feed_items: Number of items from a new feed to add to
+	    the aggregate, the rest are marked as hidden.
+	  - new_date_format: Format of the new_date variable.
+
+	* The following config.ini options were removed:
+	  - sort_order: new sort code doesn't require it
+
+	* The following template variables were renamed:
+	  - uri to url, for global and Channels
+	  - Channels description to tagline: change in feedparser
+	  - Items creator to author: change in feedparser
+
+	* Variables added to a channel in config.ini override those from the
+	  feed itself.
+
+	* All information from the feed is now available in both the channel
+	  and feed items, you should be able to include things like
+	  'fm_screenshot_url', etc.
+
