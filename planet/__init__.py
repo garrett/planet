@@ -31,6 +31,7 @@ import os
 import md5
 import time
 import dbhash
+import re
 
 
 # Version information (for generator headers)
@@ -64,6 +65,7 @@ class Planet:
         user_agent      User-Agent header to fetch feeds with.
         cache_directory Directory to store cached channels in.
         new_feed_items  Number of items to display from a new feed.
+        filter          A regular expression that articles must match.
     """
     def __init__(self):
         self._channels = []
@@ -71,6 +73,7 @@ class Planet:
         self.user_agent = USER_AGENT
         self.cache_directory = CACHE_DIRECTORY
         self.new_feed_items = NEW_FEED_ITEMS
+        self.filter = None
 
     def channels(self, hidden=0, sorted=1):
         """Return the list of channels."""
@@ -116,10 +119,21 @@ class Planet:
         because we discard the numbers and just need them to be relatively
         consistent between each other.
         """
+        filter_re = None
+        if self.filter:
+            filter_re = re.compile(self.filter, re.I)
+            
         items = []
         for channel in self.channels(hidden=hidden, sorted=0):
             for item in channel._items.values():
                 if hidden or not item.has_key("hidden"):
+                    if filter_re:
+                        title = ""
+                        if item.has_key("title"):
+                            title = item.title
+                        if not (filter_re.search(title) \
+                                or filter_re.search(item.get_content("content"))):
+                            continue
                     items.append((time.mktime(item.date), item.order, item))
 
         # Sort the list

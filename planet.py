@@ -131,6 +131,8 @@ if __name__ == "__main__":
         my_planet.new_feed_items  = int(config.get("Planet", "new_feed_items"))
     my_planet.user_agent = "%s +%s %s" % (planet_name, planet_link,
                                           my_planet.user_agent)
+    if config.has_option("Planet", "filter"):
+        my_planet.filter = config.get("Planet", "filter")
 
     # The other configuration blocks are channels to subscribe to
     for feed_url in config.sections():
