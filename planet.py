@@ -75,8 +75,7 @@ def template_info(item, date_format):
             info[key] = item[key]
     return info
 
-
-if __name__ == "__main__":
+def main():
     config_file = CONFIG_FILE
     offline = 0
 
@@ -250,3 +249,7 @@ if __name__ == "__main__":
             raise
         except:
             log.exception("Write of %s failed", output_file)
+
+if __name__ == "__main__":
+    main()
+

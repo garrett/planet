@@ -1190,7 +1190,7 @@ if _XML_AVAILABLE:
             if namespace.find('backend.userland.com/rss') <> -1:
                 # match any backend.userland.com namespace
                 namespace = 'http://backend.userland.com/rss'
-            prefix = self.namespaces.get(namespace, '')
+            prefix = self.namespaces.get(namespace, 'unknown')
             if prefix:
                 localname = prefix + ':' + localname
             localname = str(localname).lower()
@@ -1221,7 +1221,7 @@ if _XML_AVAILABLE:
         def endElementNS(self, name, qname):
             namespace, localname = name
             namespace = str(namespace)
-            prefix = self.namespaces.get(namespace, prefix)
+            prefix = self.namespaces.get(namespace, '')
             if prefix:
                 localname = prefix + ':' + localname
             localname = str(localname).lower()
