@@ -44,7 +44,7 @@ USER_AGENT = VERSION + " " + feedparser.USER_AGENT
 CACHE_DIRECTORY = "cache"
 
 # Default number of items to display from a new feed
-NEW_FEED_ITEMS = 2
+NEW_FEED_ITEMS = 10
 
 # Useful common date/time formats
 TIMEFMT_ISO = "%Y-%m-%dT%H:%M:%S+00:00"
@@ -119,21 +119,35 @@ class Planet:
         because we discard the numbers and just need them to be relatively
         consistent between each other.
         """
-        filter_re = None
+        planet_filter_re = None
         if self.filter:
-            filter_re = re.compile(self.filter, re.I)
+            planet_filter_re = re.compile(self.filter, re.I)
             
         items = []
         for channel in self.channels(hidden=hidden, sorted=0):
             for item in channel._items.values():
                 if hidden or not item.has_key("hidden"):
-                    if filter_re:
+
+                    channel_filter_re = None
+                    if channel.filter:
+                        channel_filter_re = re.compile(channel.filter,
+                                                       re.I)
+                    if planet_filter_re or channel_filter_re:
                         title = ""
                         if item.has_key("title"):
                             title = item.title
-                        if not (filter_re.search(title) \
-                                or filter_re.search(item.get_content("content"))):
+                        content = item.get_content("content")
+
+                    if planet_filter_re:
+                        if not (planet_filter_re.search(title) \
+                                or planet_filter_re.search(content)):
                             continue
+
+                    if channel_filter_re:
+                        if not (channel_filter_re.search(title) \
+                                or channel_filter_re.search(content)):
+                            continue
+
                     items.append((time.mktime(item.date), item.order, item))
 
         # Sort the list
@@ -199,6 +213,8 @@ class Channel(cache.CachedInfo):
         image_width     Width of the associated image (*).
         image_height    Height of the associated image (*).
 
+        filter          A regular expression that articles must match.
+
     Properties marked (*) will only be present if the original feed
     contained them.  Note that the optional 'modified' date field is simply
     a claim made by the item and parsed from the information given, 'updated'
@@ -226,6 +242,7 @@ class Channel(cache.CachedInfo):
         self.name = None
         self.updated = None
         self.last_updated = None
+        self.filter = None
         self.next_order = "0"
         self.cache_read()
         self.cache_read_entries()
