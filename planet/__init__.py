@@ -66,6 +66,7 @@ class Planet:
         cache_directory Directory to store cached channels in.
         new_feed_items  Number of items to display from a new feed.
         filter          A regular expression that articles must match.
+        exclude         A regular expression that articles must not match.
     """
     def __init__(self):
         self._channels = []
@@ -74,6 +75,7 @@ class Planet:
         self.cache_directory = CACHE_DIRECTORY
         self.new_feed_items = NEW_FEED_ITEMS
         self.filter = None
+        self.exclude = None
 
     def channels(self, hidden=0, sorted=1):
         """Return the list of channels."""
@@ -122,8 +124,12 @@ class Planet:
         planet_filter_re = None
         if self.filter:
             planet_filter_re = re.compile(self.filter, re.I)
+        planet_exclude_re = None
+        if self.exclude:
+            planet_exclude_re = re.compile(self.exclude, re.I)
             
         items = []
+        seen_guids = {}
         for channel in self.channels(hidden=hidden, sorted=0):
             for item in channel._items.values():
                 if hidden or not item.has_key("hidden"):
@@ -132,7 +138,12 @@ class Planet:
                     if channel.filter:
                         channel_filter_re = re.compile(channel.filter,
                                                        re.I)
-                    if planet_filter_re or channel_filter_re:
+                    channel_exclude_re = None
+                    if channel.exclude:
+                        channel_exclude_re = re.compile(channel.exclude,
+                                                        re.I)
+                    if (planet_filter_re or planet_exclude_re \
+                        or channel_filter_re or channel_exclude_re):
                         title = ""
                         if item.has_key("title"):
                             title = item.title
@@ -143,12 +154,24 @@ class Planet:
                                 or planet_filter_re.search(content)):
                             continue
 
+                    if planet_exclude_re:
+                        if (planet_exclude_re.search(title) \
+                            or planet_exclude_re.search(content)):
+                            continue
+
                     if channel_filter_re:
                         if not (channel_filter_re.search(title) \
                                 or channel_filter_re.search(content)):
                             continue
 
-                    items.append((time.mktime(item.date), item.order, item))
+                    if channel_exclude_re:
+                        if (channel_exclude_re.search(title) \
+                            or channel_exclude_re.search(content)):
+                            continue
+
+                    if not seen_guids.has_key(item.id):
+                        seen_guids[item.id] = 1;
+                        items.append((time.mktime(item.date), item.order, item))
 
         # Sort the list
         if sorted:
@@ -214,6 +237,7 @@ class Channel(cache.CachedInfo):
         image_height    Height of the associated image (*).
 
         filter          A regular expression that articles must match.
+        exclude         A regular expression that articles must not match.
 
     Properties marked (*) will only be present if the original feed
     contained them.  Note that the optional 'modified' date field is simply
@@ -243,6 +267,7 @@ class Channel(cache.CachedInfo):
         self.updated = None
         self.last_updated = None
         self.filter = None
+        self.exclude = None
         self.next_order = "0"
         self.cache_read()
         self.cache_read_entries()

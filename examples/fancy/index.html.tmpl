@@ -23,10 +23,22 @@
 
 <TMPL_LOOP Items>
 <TMPL_IF new_date>
+<TMPL_UNLESS __FIRST__>
+### End <div class="channelgroup">
+</div>
+### End <div class="daygroup">
+</div>
+</TMPL_UNLESS>
+<div class="daygroup">
 <h2><TMPL_VAR new_date></h2>
 </TMPL_IF>
 
 <TMPL_IF new_channel>
+<TMPL_UNLESS new_date>
+### End <div class="channelgroup">
+</div>
+</TMPL_UNLESS>
+<div class="channelgroup">
 
 ### Planet provides template variables for *all* configuration options for
 ### the channel (and defaults), even if it doesn't know about them.  We
@@ -41,13 +53,14 @@
 </TMPL_IF>
 
 
+<div class="entrygroup" id="<TMPL_VAR id>">
 <TMPL_IF title>
 <h4><a href="<TMPL_VAR link ESCAPE="HTML">"><TMPL_VAR title></a></h4>
 </TMPL_IF>
 <div class="entry">
-<p>
+<div>
 <TMPL_VAR content>
-</p>
+</div>
 
 ### Planet also makes available all of the information from the feed
 ### that it can.  Use the 'planet-cache' tool on the cache file for
@@ -59,6 +72,14 @@
 <a href="<TMPL_VAR link ESCAPE="HTML">"><TMPL_IF author>by <TMPL_VAR author> at </TMPL_IF><TMPL_VAR date><TMPL_IF category> under <TMPL_VAR category></TMPL_IF></a>
 </p>
 </div>
+</div>
+
+<TMPL_IF __LAST__>
+### End <div class="channelgroup">
+</div>
+### End <div class="daygroup">
+</div>
+</TMPL_IF>
 </TMPL_LOOP>
 
 
