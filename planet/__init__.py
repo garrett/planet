@@ -375,6 +375,9 @@ class Channel(cache.CachedInfo):
             elif key.endswith("_detail"):
                 # Ignore detail fields
                 pass
+            elif key == "items":
+                # Ignore items field
+                pass
             elif key.endswith("_parsed"):
                 # Date fields
                 if feed[key] is not None:
