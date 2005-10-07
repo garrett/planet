@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<feed version="0.3" xmlns="http://purl.org/atom/ns#">
+<feed xmlns="http://www.w3.org/2005/Atom">
 
 	<title><TMPL_VAR name></title>
-	<modified><TMPL_VAR date_iso></modified>
+	<!--<link rel="self" type="text/atom" href=""/>-->
 	<link rel="alternate" type="text/html" href="<TMPL_VAR link ESCAPE="HTML">"/>
-	<info type="text/html" mode="escaped"><TMPL_VAR name> - <TMPL_VAR link ESCAPE="HTML"></info>
-	<generator url="http://www.planetplanet.org/"><TMPL_VAR generator ESCAPE="HTML"></generator>
+	<id></id>
+	<updated><TMPL_VAR date_iso></updated>
+	<generator uri="http://www.planetplanet.org/"><TMPL_VAR generator ESCAPE="HTML"></generator>
 
 <TMPL_LOOP Items>
 	<entry>
 		<title><TMPL_VAR channel_name><TMPL_IF title>: <TMPL_VAR title></TMPL_IF></title>
 		<link rel="alternate" type="text/html" href="<TMPL_VAR link ESCAPE="HTML">"/>
 		<id><TMPL_VAR id ESCAPE="HTML"></id>
-		<issued><TMPL_VAR date_iso></issued>
-		<modified><TMPL_VAR date_iso></modified>
-		<content type="text/html" mode="escaped"><TMPL_VAR content ESCAPE="HTML"></content>
+		<updated><TMPL_VAR date_iso></updated>
+		<content type="html"><TMPL_VAR content ESCAPE="HTML"></content>
 		<author>
 <TMPL_IF author>
 			<name><TMPL_VAR author></name>
 <TMPL_ELSE>
 			<name><TMPL_VAR channel_name></name>
 </TMPL_IF>
-			<url><TMPL_VAR channel_link></url>
+			<uri><TMPL_VAR channel_link></uri>
 		</author>
 	</entry>
 
