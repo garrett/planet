@@ -78,16 +78,20 @@ def template_info(item, date_format):
 def main():
     config_file = CONFIG_FILE
     offline = 0
+    verbose = 0
 
     for arg in sys.argv[1:]:
         if arg == "-h" or arg == "--help":
             print "Usage: planet [options] [CONFIGFILE]"
             print
             print "Options:"
+            print " -v, --verbose       DEBUG level logging during update"
             print " -o, --offline       Update the Planet from the cache only"
             print " -h, --help          Display this help message and exit"
             print
             sys.exit(0)
+        elif arg == "-v" or arg == "--verbose":
+            verbose = 1
         elif arg == "-o" or arg == "--offline":
             offline = 1
         elif arg.startswith("-"):
@@ -108,7 +112,10 @@ def main():
     planet_link = config_get(config, "Planet", "link",        PLANET_LINK)
     owner_name  = config_get(config, "Planet", "owner_name",  OWNER_NAME)
     owner_email = config_get(config, "Planet", "owner_email", OWNER_EMAIL)
-    log_level   = config_get(config, "Planet", "log_level",   LOG_LEVEL)
+    if verbose:
+        log_level = "DEBUG"
+    else:
+        log_level  = config_get(config, "Planet", "log_level", LOG_LEVEL)
     template_files = config_get(config, "Planet", "template_files",
                                 TEMPLATE_FILES).split(" ")
 
