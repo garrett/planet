@@ -1,6 +1,5 @@
 recursive-include examples *.tmpl *.ini *.css *.png
 include AUTHORS
-include ChangeLog
 include INSTALL
 include LICENCE
 include NEWS
