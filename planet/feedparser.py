@@ -1303,7 +1303,8 @@ class _BaseHTMLProcessor(sgmllib.SGMLParser):
     def handle_comment(self, text):
         # called for each HTML comment, e.g. <!-- insert Javascript code here -->
         # Reconstruct the original comment.
-        self.pieces.append("<!--%(text)s-->" % locals())
+        #self.pieces.append("<!--%(text)s-->" % locals())
+        pass
         
     def handle_pi(self, text):
         # called for each processing instruction, e.g. <?instruction>
