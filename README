@@ -1,14 +1,12 @@
 Planet
 ------
 
-Planet is a flexible feed aggregator, this means that it downloads feeds
-and aggregates their content together into a single combined feed with
-the latest news first.
+Planet is a flexible feed aggregator. It downloads news feeds published by
+web sites and aggregates their content together into a single combined feed,
+latest news first.
 
-It uses Mark Pilgrim's Ultra-liberal feed parser so can read from RDF, RSS
-and Atom feeds and Tomas Styblo's template library to output static files
-in unlimited formats based on a series of templates.
+It uses Mark Pilgrim's Universal Feed Parser to read from RDF, RSS and Atom
+feeds; and Tomas Styblo's templating engine to output static files in any
+format you can dream up.
 
-
-We've tried to make sure you can get up and running in next to no time,
-instructions are given in the INSTALL file.
+Keywords: feed, blog, aggregator, RSS, RDF, Atom, OPML, Python

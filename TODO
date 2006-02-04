@@ -1,5 +1,5 @@
-Feature Goals for Planet 1.0
-============================
+TODO
+====
 
   * Expire feed history
 
@@ -7,41 +7,6 @@ Feature Goals for Planet 1.0
     large quite rapidly.  We should probably have a config setting for
     the cache expiry, the trouble is some channels might need a longer
     or shorter one than others.
-
-  * Restore keyword support
-
-    Jeff's keyword support isn't present, mostly because I'd unmerged
-    it from my own branch because it was causing many problems on
-    Planet Debian.  It should be restored and put in Planet.items()
-    where it belongs now.
-
-    Note: this is kinda interesting the way the config file works now :-)
-
-    - Add multiple keyword support
-
-      I hadn't announced it yet, but I have added a simple 'keyword feeds'
-      feature, which allows you to subscribe to feeds and only display
-      items that mention your keyword in the title, summary or
-      description.  This is totally arse-kickingly rad, and
-      demonstrated on my personal Planet.
-    
-      However, currently it only allows you to define one keyword
-      phrase for each feed, which kinda sucks. If there's some
-      quick-and-dirty boolean phrase parser, we could use it really
-      well here, for instance:
-
-        keyword = (gnome OR kde) NOT sucks
-
-      Maybe that's overkill - we could just support multiple ORed
-      keyword fields.
-
-    - Fix stupid UTF-8 error with current keyword support
-
-      For some reason, keyword support tweaks string encoding errors, such as:
-      "WARNING:root:Item wasn't in UTF-8 or ISO-8859-1, replaced all non-ASCII
-      characters." This is bad.
-
-      Note: this may have gone away with the new code.
 
   * Allow display normalisation to specified timezone
 
