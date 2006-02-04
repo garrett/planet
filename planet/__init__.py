@@ -53,6 +53,10 @@ TIMEFMT_822 = "%a, %d %b %Y %H:%M:%S +0000"
 
 # Log instance to use here
 log = logging.getLogger("planet")
+try:
+    log.warning
+except:
+    log.warning = log.warn
 
 
 class Planet:
