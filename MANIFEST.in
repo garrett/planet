@@ -5,6 +5,5 @@ include AUTHORS
 include ChangeLog
 include INSTALL
 include LICENCE
-include MANIFEST.in
 include NEWS
 include THANKS
