@@ -16,7 +16,7 @@ import re
 
 # Regular expressions to sanitise cache filenames
 re_url_scheme    = re.compile(r'^[^:]*://')
-re_slash         = re.compile(r'/+')
+re_slash         = re.compile(r'[?/]+')
 re_initial_cruft = re.compile(r'^[,.]*')
 re_final_cruft   = re.compile(r'[,.]*$')
 
