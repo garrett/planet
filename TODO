@@ -20,3 +20,11 @@ TODO
     Perhaps we can do this with a two-pass configuration scheme, first to pull
     the static configs, second to go fetch and generate the dynamic configs.
     The more I think about it, the less invasive it sounds. Hmm.
+
+  * Avoid NEW feeds with very old entries
+
+    We could glance at the claimed date of NEW feed entries (or even the feed
+    published/updated date itself), and use it to pick a spot for them in the
+    stack... This will avoid items from 2004 appearing at the top of the page
+    when a NEW feed is added, or even worse, on the very first run when every
+    feed is NEW.
