@@ -7,9 +7,9 @@
 	xmlns="http://purl.org/rss/1.0/"
 >
 <channel rdf:about="<TMPL_VAR link ESCAPE="HTML">">
-	<title><TMPL_VAR name></title>
+	<title><TMPL_VAR name ESCAPE="HTML"></title>
 	<link><TMPL_VAR link ESCAPE="HTML"></link>
-	<description><TMPL_VAR name> - <TMPL_VAR link ESCAPE="HTML"></description>
+	<description><TMPL_VAR name ESCAPE="HTML"> - <TMPL_VAR link ESCAPE="HTML"></description>
 
 	<items>
 		<rdf:Seq>
@@ -22,7 +22,7 @@
 
 <TMPL_LOOP Items>
 <item rdf:about="<TMPL_VAR id ESCAPE="HTML">">
-	<title><TMPL_VAR channel_name><TMPL_IF title>: <TMPL_VAR title></TMPL_IF></title>
+	<title><TMPL_VAR channel_name ESCAPE="HTML"><TMPL_IF title>: <TMPL_VAR title ESCAPE="HTML"></TMPL_IF></title>
 	<link><TMPL_VAR link ESCAPE="HTML"></link>
 	<TMPL_IF content>
 	<content:encoded><TMPL_VAR content ESCAPE="HTML"></content:encoded>
