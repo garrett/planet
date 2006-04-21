@@ -5,11 +5,11 @@
 	<title><TMPL_VAR name></title>
 	<link><TMPL_VAR link ESCAPE="HTML"></link>
 	<language>en</language>
-	<description><TMPL_VAR name> - <TMPL_VAR link ESCAPE="HTML"></description>
+	<description><TMPL_VAR name ESCAPE="HTML"> - <TMPL_VAR link ESCAPE="HTML"></description>
 
 <TMPL_LOOP Items>
 <item>
-	<title><TMPL_VAR channel_name><TMPL_IF title>: <TMPL_VAR title></TMPL_IF></title>
+	<title><TMPL_VAR channel_name ESCAPE="HTML"><TMPL_IF title>: <TMPL_VAR title ESCAPE="HTML"></TMPL_IF></title>
 	<guid><TMPL_VAR id ESCAPE="HTML"></guid>
 	<link><TMPL_VAR link ESCAPE="HTML"></link>
 	<TMPL_IF content>
