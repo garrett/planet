@@ -251,7 +251,7 @@ class Channel(cache.CachedInfo):
     Some feeds may define additional properties to those above.
     """
     IGNORE_KEYS = ("links", "contributors", "textinput", "cloud", "categories",
-                   "url", "url_etag", "url_modified")
+                   "url", "href", "url_etag", "url_modified", "tags", "itunes_explicit")
 
     def __init__(self, planet, url):
         if not os.path.isdir(planet.cache_directory):
@@ -527,7 +527,7 @@ class NewsItem(cache.CachedInfo):
     Some feeds may define additional properties to those above.
     """
     IGNORE_KEYS = ("categories", "contributors", "enclosures", "links",
-                   "guidislink", "date")
+                   "guidislink", "date", "tags")
 
     def __init__(self, channel, id_):
         cache.CachedInfo.__init__(self, channel._cache, id_)
@@ -596,7 +596,7 @@ class NewsItem(cache.CachedInfo):
         if self.has_key(key) and self.key_type(key) != self.NULL:
             return self.get_as_date(key)
 
-        for other_key in ("modified", "issued", "created"):
+        for other_key in ("updated", "modified", "published", "issued", "created"):
             if self.has_key(other_key):
                 date = self.get_as_date(other_key)
                 break
@@ -606,8 +606,9 @@ class NewsItem(cache.CachedInfo):
         if date is not None:
             if date > self._channel.updated:
                 date = self._channel.updated
-            elif date < self._channel.last_updated:
-                date = self._channel.updated
+# FIXME: feedparser 4.1 upgrade hack
+#            elif date < self._channel.last_updated:
+#                date = self._channel.updated
         else:
             date = self._channel.updated
 
