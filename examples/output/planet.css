@@ -98,14 +98,26 @@ img.face {
 }
 
 .sidebar ul {
-	padding-left: 2em;
+	padding-left: 1em;
 	margin-left: 0px;
 
-	list-style-type: square;
+	list-style-type: none;
 }
 
 .sidebar ul li:hover {
 	color: grey;
+}
+
+.sidebar ul li a {
+        text-decoration: none;
+}
+
+.sidebar ul li a:hover {
+        text-decoration: underline;
+}
+
+.sidebar ul li a img {
+        border: 0;
 }
 
 .sidebar p {

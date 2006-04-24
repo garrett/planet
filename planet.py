@@ -18,6 +18,8 @@ import os
 import sys
 import time
 import locale
+import urlparse
+import sgmllib
 
 import planet
 
@@ -30,6 +32,7 @@ CONFIG_FILE = "config.ini"
 # Defaults for the [Planet] config section
 PLANET_NAME = "Unconfigured Planet"
 PLANET_LINK = "Unconfigured Planet"
+PLANET_FEED = None
 OWNER_NAME  = "Anonymous Coward"
 OWNER_EMAIL = ""
 LOG_LEVEL   = "WARNING"
@@ -62,6 +65,16 @@ def tmpl_config_get(config, template, option, default=None, raw=0, vars=None):
     else:
         return default
 
+class stripHtml(sgmllib.SGMLParser):
+    "remove all tags from the data"
+    def __init__(self, data):
+        sgmllib.SGMLParser.__init__(self)
+        self.result=''
+        self.feed(data)
+        self.close()
+    def handle_data(self, data):
+        if data: self.result+=data
+
 def template_info(item, date_format):
     """Produce a dictionary of template information."""
     info = {}
@@ -73,6 +86,8 @@ def template_info(item, date_format):
             info[key + "_822"] = time.strftime(planet.TIMEFMT_822, date)
         else:
             info[key] = item[key]
+    if 'title' in item.keys():
+        info['title_plain'] = stripHtml(info['title']).result
     return info
 
 def main():
@@ -110,6 +125,7 @@ def main():
     # Read the [Planet] config section
     planet_name = config_get(config, "Planet", "name",        PLANET_NAME)
     planet_link = config_get(config, "Planet", "link",        PLANET_LINK)
+    planet_feed = config_get(config, "Planet", "feed",        PLANET_FEED)
     owner_name  = config_get(config, "Planet", "owner_name",  OWNER_NAME)
     owner_email = config_get(config, "Planet", "owner_email", OWNER_EMAIL)
     if verbose:
@@ -118,6 +134,14 @@ def main():
         log_level  = config_get(config, "Planet", "log_level", LOG_LEVEL)
     template_files = config_get(config, "Planet", "template_files",
                                 TEMPLATE_FILES).split(" ")
+
+    # Default feed to the first feed for which there is a template
+    if not planet_feed:
+        for template_file in template_files:
+            name = os.path.splitext(os.path.basename(template_file))[0]
+            if name.find('atom')>=0 or name.find('rss')>=0:
+                planet_feed = urlparse.urljoin(planet_link, name)
+                break
 
     # Define locale
     if config.has_option("Planet", "locale"):
@@ -231,6 +255,10 @@ def main():
         tp.set("owner_email", owner_email)
         tp.set("url",         url)
 
+        if planet_feed:
+            tp.set("feed", planet_feed)
+            tp.set("feedtype", planet_feed.find('rss')>=0 and 'rss' or 'atom')
+        
         # Update time
         date = time.gmtime()
         tp.set("date",        time.strftime(date_format, date))

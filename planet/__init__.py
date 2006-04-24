@@ -16,6 +16,7 @@ __license__ = "Python"
 # Modules available without separate import
 import cache
 import feedparser
+import sanitize
 import htmltmpl
 try:
     import logging
@@ -32,6 +33,7 @@ import md5
 import time
 import dbhash
 import re
+import xml.sax.saxutils
 
 
 # Version information (for generator headers)
@@ -401,6 +403,12 @@ class Channel(cache.CachedInfo):
             else:
                 # String fields
                 try:
+                    detail = key + '_detail'
+                    if feed.has_key(detail) and feed[detail].has_key('type'):
+                        if feed[detail].type == 'text/html':
+                            feed[key] = sanitize.HTML(feed[key])
+                        elif feed[detail].type == 'text/plain':
+                            feed[key] = xml.sax.saxutils.escape(feed[key])
                     self.set_as_string(key, feed[key])
                 except KeyboardInterrupt:
                     raise
@@ -565,11 +573,21 @@ class NewsItem(cache.CachedInfo):
                 # Content field: concatenate the values
                 value = ""
                 for item in entry[key]:
+                    if item.type == 'text/html':
+                        item.value = sanitize.HTML(item.value)
+                    elif item.type == 'text/plain':
+                        item.value = xml.sax.saxutils.escape(item.value)
                     value += cache.utf8(item.value)
                 self.set_as_string(key, value)
             else:
                 # String fields
                 try:
+                    detail = key + '_detail'
+                    if entry.has_key(detail) and entry[detail].has_key('type'):
+                        if entry[detail].type == 'text/html':
+                            entry[key] = sanitize.HTML(entry[key])
+                        elif entry[detail].type == 'text/plain':
+                            entry[key] = xml.sax.saxutils.escape(entry[key])
                     self.set_as_string(key, entry[key])
                 except KeyboardInterrupt:
                     raise
@@ -606,7 +624,6 @@ class NewsItem(cache.CachedInfo):
         if date is not None:
             if date > self._channel.updated:
                 date = self._channel.updated
-# FIXME: feedparser 4.1 upgrade hack
 #            elif date < self._channel.last_updated:
 #                date = self._channel.updated
         else:

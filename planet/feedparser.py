@@ -95,10 +95,12 @@ try:
     _XML_AVAILABLE = 1
 except:
     _XML_AVAILABLE = 0
-    def _xmlescape(data):
+    def _xmlescape(data,entities={}):
         data = data.replace('&', '&amp;')
         data = data.replace('>', '&gt;')
         data = data.replace('<', '&lt;')
+        for char, entity in entities:
+            data = data.replace(char, entity)
         return data
 
 # base64 support for Atom feeds that contain embedded binary data
@@ -433,7 +435,7 @@ class _FeedParserMixin:
             # This will horribly munge inline content with non-empty qnames,
             # but nobody actually does that, so I'm not fixing it.
             tag = tag.split(':')[-1]
-            return self.handle_data('<%s%s>' % (tag, ''.join([' %s="%s"' % t for t in attrs])), escape=0)
+            return self.handle_data('<%s%s>' % (tag, self.strattrs(attrs)), escape=0)
 
         # match namespaces
         if tag.find(':') <> -1:
@@ -595,6 +597,9 @@ class _FeedParserMixin:
     def decodeEntities(self, element, data):
         return data
 
+    def strattrs(self, attrs):
+        return ''.join([' %s="%s"' % (t[0],_xmlescape(t[1],{'"':'&quot;'})) for t in attrs])
+
     def push(self, element, expectingText):
         self.elementstack.append([element, expectingText, []])
 
@@ -603,6 +608,23 @@ class _FeedParserMixin:
         if self.elementstack[-1][0] != element: return
         
         element, expectingText, pieces = self.elementstack.pop()
+
+        if self.version == 'atom10' and self.contentparams.get('type','text') == 'application/xhtml+xml':
+            # remove enclosing child element, but only if it is a <div> and
+            # only if all the remaining content is nested underneath it.
+            # This means that the divs would be retained in the following:
+            #    <div>foo</div><div>bar</div>
+            if pieces and (pieces[0] == '<div>' or pieces[0].startswith('<div ')) and pieces[-1]=='</div>':
+                depth = 0
+                for piece in pieces[:-1]:
+                    if piece.startswith('</'):
+                        depth -= 1
+                        if depth == 0: break
+                    elif piece.startswith('<') and not piece.endswith('/>'):
+                        depth += 1
+                else:
+                    pieces = pieces[1:-1]
+
         output = ''.join(pieces)
         if stripWhitespace:
             output = output.strip()
@@ -1533,8 +1555,10 @@ class _LooseFeedParser(_FeedParserMixin, _BaseHTMLProcessor):
     def decodeEntities(self, element, data):
         data = data.replace('&#60;', '&lt;')
         data = data.replace('&#x3c;', '&lt;')
+        data = data.replace('&#x3C;', '&lt;')
         data = data.replace('&#62;', '&gt;')
         data = data.replace('&#x3e;', '&gt;')
+        data = data.replace('&#x3E;', '&gt;')
         data = data.replace('&#38;', '&amp;')
         data = data.replace('&#x26;', '&amp;')
         data = data.replace('&#34;', '&quot;')
@@ -1549,6 +1573,9 @@ class _LooseFeedParser(_FeedParserMixin, _BaseHTMLProcessor):
             data = data.replace('&apos;', "'")
         return data
         
+    def strattrs(self, attrs):
+        return ''.join([' %s="%s"' % t for t in attrs])
+ 
 class _RelativeURIResolver(_BaseHTMLProcessor):
     relative_uris = [('a', 'href'),
                      ('applet', 'codebase'),
