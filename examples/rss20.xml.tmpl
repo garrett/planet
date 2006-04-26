@@ -9,7 +9,7 @@
 
 <TMPL_LOOP Items>
 <item>
-	<title><TMPL_VAR channel_name ESCAPE="HTML"><TMPL_IF title>: <TMPL_VAR title ESCAPE="HTML"></TMPL_IF></title>
+	<title><TMPL_VAR channel_name ESCAPE="HTML"><TMPL_IF title>: <TMPL_VAR title_plain ESCAPE="HTML"></TMPL_IF></title>
 	<guid><TMPL_VAR id ESCAPE="HTML"></guid>
 	<link><TMPL_VAR link ESCAPE="HTML"></link>
 	<TMPL_IF content>

@@ -22,7 +22,7 @@
 
 <TMPL_LOOP Items>
 <item rdf:about="<TMPL_VAR id ESCAPE="HTML">">
-	<title><TMPL_VAR channel_name ESCAPE="HTML"><TMPL_IF title>: <TMPL_VAR title ESCAPE="HTML"></TMPL_IF></title>
+	<title><TMPL_VAR channel_name ESCAPE="HTML"><TMPL_IF title>: <TMPL_VAR title_plain ESCAPE="HTML"></TMPL_IF></title>
 	<link><TMPL_VAR link ESCAPE="HTML"></link>
 	<TMPL_IF content>
 	<content:encoded><TMPL_VAR content ESCAPE="HTML"></content:encoded>
