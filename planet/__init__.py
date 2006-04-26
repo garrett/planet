@@ -400,7 +400,7 @@ class Channel(cache.CachedInfo):
                     self.set_as_string(key + "_width", str(feed[key].width))
                 if feed[key].has_key("height"):
                     self.set_as_string(key + "_height", str(feed[key].height))
-            else:
+            elif isinstance(feed[key],basestring):
                 # String fields
                 try:
                     detail = key + '_detail'
@@ -579,7 +579,7 @@ class NewsItem(cache.CachedInfo):
                         item.value = xml.sax.saxutils.escape(item.value)
                     value += cache.utf8(item.value)
                 self.set_as_string(key, value)
-            else:
+            elif isinstance(entry[key],basestring):
                 # String fields
                 try:
                     detail = key + '_detail'
