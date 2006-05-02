@@ -68,6 +68,7 @@ DAYS_PER_PAGE   = 0
 OUTPUT_DIR      = "output"
 DATE_FORMAT     = "%B %d, %Y %I:%M %p"
 NEW_DATE_FORMAT = "%B %d, %Y"
+ACTIVITY_THRESHOLD = 0
 
 class stripHtml(sgmllib.SGMLParser):
     "remove all tags from the data"
@@ -92,6 +93,7 @@ def template_info(item, date_format):
             info[key] = item[key]
     if 'title' in item.keys():
         info['title_plain'] = stripHtml(info['title']).result
+
     return info
 
 
@@ -156,7 +158,7 @@ class Planet:
 
             # Update it
             try:
-                if not offline:
+                if not offline and not channel.url_status == '410':
                     channel.update()
             except KeyboardInterrupt:
                 raise
@@ -186,6 +188,16 @@ class Planet:
             days_per_page = int(tmpl_config_get(config, template_file,
                                                 "days_per_page", DAYS_PER_PAGE))
         
+            activity_threshold = int(tmpl_config_get(config, template_file,
+                                                "activity_threshold",
+                                                ACTIVITY_THRESHOLD))
+
+            if activity_threshold:
+                activity_horizon = \
+                    time.gmtime(time.time()-86400*activity_threshold)
+            else:
+                activity_horizon = 0
+
             # We treat each template individually
             base = os.path.splitext(os.path.basename(template_file))[0]
             url = os.path.join(planet_link, base)
@@ -197,7 +209,28 @@ class Planet:
             for channel in self.channels(hidden=1):
                 channels[channel] = template_info(channel, date_format)
                 channels_list.append(channels[channel])
-        
+
+                # identify inactive feeds
+                if activity_horizon:
+                    latest = channel.items(sorted=1)
+                    if len(latest)==0 or latest[0].date < activity_horizon:
+                        channels[channel]["message"] = \
+                            "no activity in %d days" % activity_threshold
+
+                # report channel level errors
+                if not channel.url_status: continue
+                status = int(channel.url_status)
+                if status == 403:
+                   channels[channel]["message"] = "403: forbidden"
+                elif status == 404:
+                   channels[channel]["message"] = "404: not found"
+                elif status == 410:
+                   channels[channel]["message"] = "410: gone"
+                elif status == 500:
+                   channels[channel]["message"] = "internal server error"
+                elif status >= 400:
+                   channels[channel]["message"] = "http status %s" % status
+
             # Gather item information
             items_list = []
             prev_date = []
@@ -394,6 +427,7 @@ class Channel(cache.CachedInfo):
         url             URL of the feed.
         url_etag        E-Tag of the feed URL.
         url_modified    Last modified time of the feed URL.
+        url_status      Last HTTP status of the feed URL.
         hidden          Channel should be hidden (True if exists).
         name            Name of the feed owner, or feed title.
         next_order      Next order number to be assigned to NewsItem
@@ -451,6 +485,7 @@ class Channel(cache.CachedInfo):
         self._expired = []
         self.url = url
         self.url_etag = None
+        self.url_status = None
         self.url_modified = None
         self.name = None
         self.updated = None
@@ -518,19 +553,28 @@ class Channel(cache.CachedInfo):
         info = feedparser.parse(self.url,
                                 etag=self.url_etag, modified=self.url_modified,
                                 agent=self._planet.user_agent)
-        if not info.has_key("status"):
-            log.info("Updating feed <%s>", self.url)
-        elif info.status == 301 or info.status == 302:
+        if info.has_key("status"):
+           self.url_status = str(info.status)
+        elif info.has_key("entries") and len(info.entries)>0:
+           self.url_status = str(200)
+        else:
+           self.url_status = str(500)
+
+        if self.url_status == '301':
             log.warning("Feed has moved from <%s> to <%s>", self.url, info.url)
             os.link(cache.filename(self._planet.cache_directory, self.url),
                     cache.filename(self._planet.cache_directory, info.url))
             self.url = info.url
-        elif info.status == 304:
+        elif self.url_status == '304':
             log.info("Feed <%s> unchanged", self.url)
             return
-        elif info.status >= 400:
-            log.error("Error %d while updating feed <%s>",
-                      info.status, self.url)
+        elif self.url_status == '410':
+            log.info("Feed <%s> gone", self.url)
+            self.cache_write()
+            return
+        elif int(self.url_status) >= 400:
+            log.error("Error %s while updating feed <%s>",
+                      self.url_status, self.url)
             return
         else:
             log.info("Updating feed <%s>", self.url)
@@ -667,7 +711,7 @@ class Channel(cache.CachedInfo):
                 break
             elif item.id in feed_items:
                 feed_count -= 1
-            else:
+            elif item._channel.url_status != '226':
                 del(self._items[item.id])
                 self._expired.append(item)
                 log.debug("Removed expired or replaced item <%s>", item.id)
