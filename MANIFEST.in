@@ -4,3 +4,5 @@ include INSTALL
 include LICENCE
 include NEWS
 include THANKS
+include TODO
+exclude setup.py
