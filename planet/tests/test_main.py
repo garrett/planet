@@ -1,10 +1,10 @@
-import os, sys, shutil, errno
-from unittest import TestCase
+#!/usr/bin/env python
+import os, sys, shutil, errno, unittest
 from ConfigParser import ConfigParser
 from StringIO import StringIO
 import planet
 
-class MainTest(TestCase):
+class MainTest(unittest.TestCase):
     
     def test_minimal(self):
         configp = ConfigParser()
@@ -66,3 +66,6 @@ name = Mary
         super(MainTest, self).tearDown()
         shutil.rmtree(self.output_dir, ignore_errors = True)
         shutil.rmtree('cache', ignore_errors = True)
+
+if __name__ == '__main__':
+    unittest.main()

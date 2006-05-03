@@ -484,6 +484,8 @@ class Channel(cache.CachedInfo):
         self._planet = planet
         self._expired = []
         self.url = url
+        # retain the original URL for error reporting
+        self.configured_url = url
         self.url_etag = None
         self.url_status = None
         self.url_modified = None
@@ -544,6 +546,22 @@ class Channel(cache.CachedInfo):
 
         self._expired = []
 
+    def feed_information(self):
+        """
+        Returns a description string for the feed embedded in this channel.
+
+        This will usually simply be the feed url embedded in <>, but in the
+        case where the current self.url has changed from the original
+        self.configured_url the string will contain both pieces of information.
+        This is so that the URL in question is easier to find in logging
+        output: getting an error about a URL that doesn't appear in your config
+        file is annoying.
+        """
+        if self.url == self.configured_url:
+            return "<%s>" % self.url
+        else:
+            return "<%s> (formerly <%s>)" % (self.url, self.configured_url)
+
     def update(self):
         """Download the feed to refresh the information.
 
@@ -566,18 +584,18 @@ class Channel(cache.CachedInfo):
                     cache.filename(self._planet.cache_directory, info.url))
             self.url = info.url
         elif self.url_status == '304':
-            log.info("Feed <%s> unchanged", self.url)
+            log.info("Feed %s unchanged", self.feed_information())
             return
         elif self.url_status == '410':
-            log.info("Feed <%s> gone", self.url)
+            log.info("Feed %s gone", self.feed_information())
             self.cache_write()
             return
         elif int(self.url_status) >= 400:
-            log.error("Error %s while updating feed <%s>",
-                      self.url_status, self.url)
+            log.error("Error %s while updating feed %s",
+                      self.url_status, self.feed_information())
             return
         else:
-            log.info("Updating feed <%s>", self.url)
+            log.info("Updating feed %s", self.feed_information())
 
         self.url_etag = info.has_key("etag") and info.etag or None
         self.url_modified = info.has_key("modified") and info.modified or None
