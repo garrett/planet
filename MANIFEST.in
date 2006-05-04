@@ -1,4 +1,5 @@
 recursive-include examples *.tmpl *.ini *.css *.png .empty
+recursive-include planet/tests *.tmpl
 include AUTHORS
 include INSTALL
 include LICENCE
