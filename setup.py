@@ -18,5 +18,5 @@ setup(name="planet",
       url="http://www.planetplanet.org/",
       license=LICENSE,
       packages=["planet", "planet.compat_logging", "planet.tests"],
-      scripts=["planet.py", "planet-cache.py"],
+      scripts=["planet.py", "planet-cache.py", "runtests.py"],
       )
