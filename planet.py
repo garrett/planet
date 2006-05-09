@@ -34,6 +34,7 @@ PLANET_FEED = None
 OWNER_NAME  = "Anonymous Coward"
 OWNER_EMAIL = ""
 LOG_LEVEL   = "WARNING"
+FEED_TIMEOUT = 20 # seconds
 
 # Default template file list
 TEMPLATE_FILES = "examples/basic/planet.html.tmpl"
@@ -89,6 +90,7 @@ def main():
         log_level = "DEBUG"
     else:
         log_level  = config_get(config, "Planet", "log_level", LOG_LEVEL)
+    feed_timeout   = config_get(config, "Planet", "feed_timeout", FEED_TIMEOUT)
     template_files = config_get(config, "Planet", "template_files",
                                 TEMPLATE_FILES).split(" ")
 
@@ -107,9 +109,28 @@ def main():
     # Activate logging
     planet.logging.basicConfig()
     planet.logging.getLogger().setLevel(planet.logging.getLevelName(log_level))
+    log = planet.logging.getLogger("planet.runner")
+
+    # timeoutsocket allows feedparser to time out rather than hang forever on
+    # ultra-slow servers.  Python 2.3 now has this functionality available in
+    # the standard socket library, so under 2.3 you don't need to install
+    # anything.  But you probably should anyway, because the socket module is
+    # buggy and timeoutsocket is better.
+    if feed_timeout and not offline:
+        try:
+            from planet import timeoutsocket
+            timeoutsocket.setDefaultSocketTimeout(feed_timeout)
+            log.debug("Socket timeout set to %d seconds", feed_timeout)
+        except ImportError:
+            import socket
+            if hasattr(socket, 'setdefaulttimeout'):
+                log.debug("timeoutsocket not found, using python function")
+                socket.setdefaulttimeout(feed_timeout)
+                log.debug("Socket timeout set to %d seconds", feed_timeout)
+            else:
+                log.error("Unable to set timeout to %d seconds", feed_timeout)
 
     my_planet = planet.Planet()
-    log = planet.logging.getLogger("planet.runner")
     my_planet.run(config, planet_name, planet_link, template_files, offline)
     my_planet.generate_all_files(template_files, config, planet_name, planet_link, planet_feed,
             owner_name, owner_email)
