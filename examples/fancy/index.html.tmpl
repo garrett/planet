@@ -56,12 +56,12 @@
 </TMPL_IF>
 
 
-<div class="entrygroup" id="<TMPL_VAR id>">
+<div class="entrygroup" id="<TMPL_VAR id>"<TMPL_IF channel_language> lang="<TMPL_VAR channel_language>"</TMPL_IF>>
 <TMPL_IF title>
-<h4><a href="<TMPL_VAR link ESCAPE="HTML">"><TMPL_VAR title></a></h4>
+<h4<TMPL_IF title_language> lang="<TMPL_VAR title_language>"</TMPL_IF>><a href="<TMPL_VAR link ESCAPE="HTML">"><TMPL_VAR title></a></h4>
 </TMPL_IF>
 <div class="entry">
-<div>
+<div class="content"<TMPL_IF content_language> lang="<TMPL_VAR content_language>"</TMPL_IF>>
 <TMPL_VAR content>
 </div>
 

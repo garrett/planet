@@ -8,6 +8,7 @@ import re
 class relativize:
   def __init__(self, parent):
     self.score = {}
+    self.links = []
     self.collect_and_tally(parent)
     self.base = self.select_optimal_base()
     if self.base:
@@ -15,9 +16,10 @@ class relativize:
         self.rebase(parent)
         parent.setAttribute('xml:base', self.base)
 
-  # collect and tally href and src attributes
+  # collect and tally cite, href and src attributes
   def collect_and_tally(self,parent):
     uri = None
+    if parent.hasAttribute('cite'): uri=parent.getAttribute('cite')
     if parent.hasAttribute('href'): uri=parent.getAttribute('href')
     if parent.hasAttribute('src'): uri=parent.getAttribute('src')
 
@@ -25,9 +27,11 @@ class relativize:
       parts=urlparse(uri)
       if parts[0].lower() == 'http':
         parts = (parts[1]+parts[2]).split('/')
+        base = None
         for i in range(1,len(parts)):
           base = tuple(parts[0:i])
           self.score[base] = self.score.get(base,0) + len(base)
+        if base and base not in self.links: self.links.append(base)
 
     for node in parent.childNodes:
       if node.nodeType == Node.ELEMENT_NODE:
@@ -36,15 +40,19 @@ class relativize:
   # select the xml:base with the highest score
   def select_optimal_base(self):
     if not self.score: return None
+    for link in self.links:
+      self.score[link] = 0
     winner = max(self.score.values())
+    if not winner: return None
     for key in self.score.keys():
       if self.score[key] == winner:
         if winner == len(key): return None
         return urlunparse(('http', key[0], '/'.join(key[1:]), '', '', '')) + '/'
     
-  # rewrite href and src attributes using this base
+  # rewrite cite, href and src attributes using this base
   def rebase(self,parent):
     uri = None
+    if parent.hasAttribute('cite'): uri=parent.getAttribute('cite')
     if parent.hasAttribute('href'): uri=parent.getAttribute('href')
     if parent.hasAttribute('src'): uri=parent.getAttribute('src')
     if uri and uri.startswith(self.base):
@@ -60,6 +68,7 @@ class relativize:
 def retype(parent):
   for node in parent.childNodes:
     if node.nodeType == Node.ELEMENT_NODE:
+
       if node.hasAttribute('type') and node.getAttribute('type') == 'html':
         if len(node.childNodes)==1:
 
@@ -90,8 +99,6 @@ def retype(parent):
               node.setAttribute('type', 'xhtml')
               node.removeChild(node.childNodes[0])
               node.appendChild(data.documentElement)
-              if node.nodeName == 'content':
-                relativize(node.parentNode)
 
           except ExpatError:
             # leave as html
@@ -100,6 +107,9 @@ def retype(parent):
       else:
         # recurse
         retype(node)
+
+  if parent.nodeName == 'entry':
+    relativize(parent)
 
 if __name__ == '__main__':
 

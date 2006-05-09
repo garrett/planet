@@ -2,16 +2,19 @@
 # and from http://feedparser.org/tests/wellformed/sanitize/
 # by Aaron Swartz, 2006, public domain
 
-import sanitize
+import unittest, new
+from planet import sanitize
 
+class SanitizeTest(unittest.TestCase): pass
+
+# each call to HTML adds a test case to SanitizeTest
+testcases = 0
 def HTML(a, b):
-    try:
-        assert sanitize.HTML(a) == b
-    except AssertionError:
-        print ' in:', repr(a)
-        print 'out:', repr(sanitize.HTML(a))
-        print 'exp:', repr(b)
-        raise
+  global testcases
+  testcases += 1
+  func = lambda self: self.assertEqual(sanitize.HTML(a), b)
+  method = new.instancemethod(func, None, SanitizeTest)
+  setattr(SanitizeTest, "test_%d" % testcases, method)
 
 ## basics
 HTML("","")
