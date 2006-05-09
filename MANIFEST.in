@@ -6,4 +6,6 @@ include LICENCE
 include NEWS
 include THANKS
 include TODO
-exclude setup.py
+# include bzr bits for easy updating
+global-include .bzrignore
+graft .bzr
