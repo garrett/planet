@@ -595,6 +595,9 @@ class Channel(cache.CachedInfo):
             log.info("Feed %s gone", self.feed_information())
             self.cache_write()
             return
+        elif self.url_status == '408':
+            log.warning("Feed %s timed out", self.feed_information())
+            return
         elif int(self.url_status) >= 400:
             log.error("Error %s while updating feed %s",
                       self.url_status, self.feed_information())
