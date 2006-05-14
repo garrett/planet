@@ -70,7 +70,9 @@ def retype(parent):
     if node.nodeType == Node.ELEMENT_NODE:
 
       if node.hasAttribute('type') and node.getAttribute('type') == 'html':
-        if len(node.childNodes)==1:
+        if len(node.childNodes)==0:
+          node.removeAttribute('type')
+        elif len(node.childNodes)==1:
 
           # replace html entity defs with utf-8
           chunks=re.split('&(\w+);', node.childNodes[0].nodeValue)
