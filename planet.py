@@ -18,11 +18,11 @@ import os
 import sys
 import time
 import locale
+import urlparse
 
 import planet
 
 from ConfigParser import ConfigParser
-
 
 # Default configuration file path
 CONFIG_FILE = "config.ini"
@@ -30,20 +30,15 @@ CONFIG_FILE = "config.ini"
 # Defaults for the [Planet] config section
 PLANET_NAME = "Unconfigured Planet"
 PLANET_LINK = "Unconfigured Planet"
+PLANET_FEED = None
 OWNER_NAME  = "Anonymous Coward"
 OWNER_EMAIL = ""
 LOG_LEVEL   = "WARNING"
+FEED_TIMEOUT = 20 # seconds
 
 # Default template file list
 TEMPLATE_FILES = "examples/basic/planet.html.tmpl"
 
-# Defaults for the template file config sections
-OUTPUT_DIR      = "output"
-DATE_FORMAT     = "%B %d, %Y %I:%M %p"
-NEW_DATE_FORMAT = "%B %d, %Y"
-ENCODING        = "utf-8"
-ITEMS_PER_PAGE  = 60
-DAYS_PER_PAGE   = 0
 
 
 def config_get(config, section, option, default=None, raw=0, vars=None):
@@ -52,28 +47,6 @@ def config_get(config, section, option, default=None, raw=0, vars=None):
         return config.get(section, option, raw=raw, vars=None)
     else:
         return default
-
-def tmpl_config_get(config, template, option, default=None, raw=0, vars=None):
-    """Get a template value from the configuration, with a default."""
-    if config.has_option(template, option):
-        return config.get(template, option, raw=raw, vars=None)
-    elif config.has_option("Planet", option):
-        return config.get("Planet", option, raw=raw, vars=None)
-    else:
-        return default
-
-def template_info(item, date_format):
-    """Produce a dictionary of template information."""
-    info = {}
-    for key in item.keys():
-        if item.key_type(key) == item.DATE:
-            date = item.get_as_date(key)
-            info[key] = time.strftime(date_format, date)
-            info[key + "_iso"] = time.strftime(planet.TIMEFMT_ISO, date)
-            info[key + "_822"] = time.strftime(planet.TIMEFMT_822, date)
-        else:
-            info[key] = item[key]
-    return info
 
 def main():
     config_file = CONFIG_FILE
@@ -110,152 +83,85 @@ def main():
     # Read the [Planet] config section
     planet_name = config_get(config, "Planet", "name",        PLANET_NAME)
     planet_link = config_get(config, "Planet", "link",        PLANET_LINK)
+    planet_feed = config_get(config, "Planet", "feed",        PLANET_FEED)
     owner_name  = config_get(config, "Planet", "owner_name",  OWNER_NAME)
     owner_email = config_get(config, "Planet", "owner_email", OWNER_EMAIL)
     if verbose:
         log_level = "DEBUG"
     else:
         log_level  = config_get(config, "Planet", "log_level", LOG_LEVEL)
+    feed_timeout   = config_get(config, "Planet", "feed_timeout", FEED_TIMEOUT)
     template_files = config_get(config, "Planet", "template_files",
                                 TEMPLATE_FILES).split(" ")
 
+    # Default feed to the first feed for which there is a template
+    if not planet_feed:
+        for template_file in template_files:
+            name = os.path.splitext(os.path.basename(template_file))[0]
+            if name.find('atom')>=0 or name.find('rss')>=0:
+                planet_feed = urlparse.urljoin(planet_link, name)
+                break
+
     # Define locale
     if config.has_option("Planet", "locale"):
-        locale.setlocale(locale.LC_ALL, config.get("Planet", "locale"))
+        # The user can specify more than one locale (separated by ":") as
+        # fallbacks.
+        locale_ok = False
+        for user_locale in config.get("Planet", "locale").split(':'):
+            user_locale = user_locale.strip()
+            try:
+                locale.setlocale(locale.LC_ALL, user_locale)
+            except locale.Error:
+                pass
+            else:
+                locale_ok = True
+                break
+        if not locale_ok:
+            print >>sys.stderr, "Unsupported locale setting."
+            sys.exit(1)
 
     # Activate logging
     planet.logging.basicConfig()
     planet.logging.getLogger().setLevel(planet.logging.getLevelName(log_level))
     log = planet.logging.getLogger("planet.runner")
+    try:
+        log.warning
+    except:
+        log.warning = log.warn
 
-    # Create a planet
-    log.info("Loading cached data")
-    my_planet = planet.Planet()
-    if config.has_option("Planet", "cache_directory"):
-        my_planet.cache_directory = config.get("Planet", "cache_directory")
-    if config.has_option("Planet", "new_feed_items"):
-        my_planet.new_feed_items  = int(config.get("Planet", "new_feed_items"))
-    my_planet.user_agent = "%s +%s %s" % (planet_name, planet_link,
-                                          my_planet.user_agent)
-    if config.has_option("Planet", "filter"):
-        my_planet.filter = config.get("Planet", "filter")
-
-    # The other configuration blocks are channels to subscribe to
-    for feed_url in config.sections():
-        if feed_url == "Planet" or feed_url in template_files:
-            continue
-
-        # Create a channel, configure it and subscribe it
-        channel = planet.Channel(my_planet, feed_url)
-        for option in config.options(feed_url):
-            value = config.get(feed_url, option)
-            channel.set_as_string(option, value, cached=0)
-        my_planet.subscribe(channel)
-
-        # Update it
+    # timeoutsocket allows feedparser to time out rather than hang forever on
+    # ultra-slow servers.  Python 2.3 now has this functionality available in
+    # the standard socket library, so under 2.3 you don't need to install
+    # anything.  But you probably should anyway, because the socket module is
+    # buggy and timeoutsocket is better.
+    if feed_timeout:
         try:
-            if not offline:
-                channel.update()
-        except KeyboardInterrupt:
-            raise
+            feed_timeout = float(feed_timeout)
         except:
-            log.exception("Update of <%s> failed", feed_url)
+            log.warning("Feed timeout set to invalid value '%s', skipping", feed_timeout)
+            feed_timeout = None
 
-    # Go-go-gadget-template
-    manager = planet.htmltmpl.TemplateManager()
-    for template_file in template_files:
-        log.info("Processing template %s", template_file)
-        template = manager.prepare(template_file)
-
-        # Read the configuration
-        output_dir = tmpl_config_get(config, template_file,
-                                     "output_dir", OUTPUT_DIR)
-        date_format = tmpl_config_get(config, template_file,
-                                      "date_format", DATE_FORMAT, raw=1)
-        new_date_format = tmpl_config_get(config, template_file,
-                                          "new_date_format", NEW_DATE_FORMAT,
-                                          raw=1)
-        encoding = tmpl_config_get(config, template_file, "encoding", ENCODING)
-        items_per_page = int(tmpl_config_get(config, template_file,
-                                             "items_per_page", ITEMS_PER_PAGE))
-        days_per_page = int(tmpl_config_get(config, template_file,
-                                            "days_per_page", DAYS_PER_PAGE))
-
-        # We treat each template individually
-        base = os.path.splitext(os.path.basename(template_file))[0]
-        url = os.path.join(planet_link, base)
-        output_file = os.path.join(output_dir, base)
-
-        # Gather channel information
-        channels = {}
-        channels_list = []
-        for channel in my_planet.channels(hidden=1):
-            channels[channel] = template_info(channel, date_format)
-            channels_list.append(channels[channel])
-
-        # Gather item information
-        items_list = []
-        prev_date = []
-        prev_channel = None
-        for newsitem in my_planet.items(max_items=items_per_page,
-                                        max_days=days_per_page):
-            item_info = template_info(newsitem, date_format)
-            chan_info = channels[newsitem._channel]
-            for k, v in chan_info.items():
-                item_info["channel_" + k] = v
-
-            # Check for the start of a new day
-            if prev_date[:3] != newsitem.date[:3]:
-                prev_date = newsitem.date
-                item_info["new_date"] = time.strftime(new_date_format,
-                                                      newsitem.date)
-
-            # Check for the start of a new channel
-            if item_info.has_key("new_date") \
-                   or prev_channel != newsitem._channel:
-                prev_channel = newsitem._channel
-                item_info["new_channel"] = newsitem._channel.url
-
-            items_list.append(item_info)
-
-        # Process the template
-        tp = planet.htmltmpl.TemplateProcessor(html_escape=0)
-        tp.set("Items", items_list)
-        tp.set("Channels", channels_list)
-
-        # Generic information
-        tp.set("generator",   planet.VERSION)
-        tp.set("name",        planet_name)
-        tp.set("link",        planet_link)
-        tp.set("owner_name",  owner_name)
-        tp.set("owner_email", owner_email)
-        tp.set("url",         url)
-
-        # Update time
-        date = time.gmtime()
-        tp.set("date",        time.strftime(date_format, date))
-        tp.set("date_iso",    time.strftime(planet.TIMEFMT_ISO, date))
-        tp.set("date_822",    time.strftime(planet.TIMEFMT_822, date))
-
+    if feed_timeout and not offline:
         try:
-            log.info("Writing %s", output_file)
-            output_fd = open(output_file, "w")
-            if encoding.lower() in ("utf-8", "utf8"):
-                # UTF-8 output is the default because we use that internally
-                output_fd.write(tp.process(template))
-            elif encoding.lower() in ("xml", "html", "sgml"):
-                # Magic for Python 2.3 users
-                output = tp.process(template).decode("utf-8")
-                output_fd.write(output.encode("ascii", "xmlcharrefreplace"))
+            from planet import timeoutsocket
+            timeoutsocket.setDefaultSocketTimeout(feed_timeout)
+            log.debug("Socket timeout set to %d seconds", feed_timeout)
+        except ImportError:
+            import socket
+            if hasattr(socket, 'setdefaulttimeout'):
+                log.debug("timeoutsocket not found, using python function")
+                socket.setdefaulttimeout(feed_timeout)
+                log.debug("Socket timeout set to %d seconds", feed_timeout)
             else:
-                # Must be a "known" encoding
-                output = tp.process(template).decode("utf-8")
-                output_fd.write(output.encode(encoding, "replace"))
-            output_fd.close()
-        except KeyboardInterrupt:
-            raise
-        except:
-            log.exception("Write of %s failed", output_file)
+                log.error("Unable to set timeout to %d seconds", feed_timeout)
+
+    # run the planet
+    my_planet = planet.Planet(config)
+    my_planet.run(planet_name, planet_link, template_files, offline)
+
+    my_planet.generate_all_files(template_files, planet_name,
+        planet_link, planet_feed, owner_name, owner_email)
+
 
 if __name__ == "__main__":
     main()

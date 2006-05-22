@@ -16,7 +16,9 @@ __license__ = "Python"
 # Modules available without separate import
 import cache
 import feedparser
+import sanitize
 import htmltmpl
+import sgmllib
 try:
     import logging
 except:
@@ -32,6 +34,7 @@ import md5
 import time
 import dbhash
 import re
+import xml.sax.saxutils
 
 
 # Version information (for generator headers)
@@ -58,6 +61,41 @@ try:
 except:
     log.warning = log.warn
 
+# Defaults for the template file config sections
+ENCODING        = "utf-8"
+ITEMS_PER_PAGE  = 60
+DAYS_PER_PAGE   = 0
+OUTPUT_DIR      = "output"
+DATE_FORMAT     = "%B %d, %Y %I:%M %p"
+NEW_DATE_FORMAT = "%B %d, %Y"
+ACTIVITY_THRESHOLD = 0
+
+class stripHtml(sgmllib.SGMLParser):
+    "remove all tags from the data"
+    def __init__(self, data):
+        sgmllib.SGMLParser.__init__(self)
+        self.result=''
+        self.feed(data)
+        self.close()
+    def handle_data(self, data):
+        if data: self.result+=data
+
+def template_info(item, date_format):
+    """Produce a dictionary of template information."""
+    info = {}
+    for key in item.keys():
+        if item.key_type(key) == item.DATE:
+            date = item.get_as_date(key)
+            info[key] = time.strftime(date_format, date)
+            info[key + "_iso"] = time.strftime(TIMEFMT_ISO, date)
+            info[key + "_822"] = time.strftime(TIMEFMT_822, date)
+        else:
+            info[key] = item[key]
+    if 'title' in item.keys():
+        info['title_plain'] = stripHtml(info['title']).result
+
+    return info
+
 
 class Planet:
     """A set of channels.
@@ -72,7 +110,9 @@ class Planet:
         filter          A regular expression that articles must match.
         exclude         A regular expression that articles must not match.
     """
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
+
         self._channels = []
 
         self.user_agent = USER_AGENT
@@ -80,6 +120,200 @@ class Planet:
         self.new_feed_items = NEW_FEED_ITEMS
         self.filter = None
         self.exclude = None
+
+    def tmpl_config_get(self, template, option, default=None, raw=0, vars=None):
+        """Get a template value from the configuration, with a default."""
+        if self.config.has_option(template, option):
+            return self.config.get(template, option, raw=raw, vars=None)
+        elif self.config.has_option("Planet", option):
+            return self.config.get("Planet", option, raw=raw, vars=None)
+        else:
+            return default
+
+    def gather_channel_info(self, template_file="Planet"):
+        date_format = self.tmpl_config_get(template_file,
+                                      "date_format", DATE_FORMAT, raw=1)
+
+        activity_threshold = int(self.tmpl_config_get(template_file,
+                                            "activity_threshold",
+                                            ACTIVITY_THRESHOLD))
+
+        if activity_threshold:
+            activity_horizon = \
+                time.gmtime(time.time()-86400*activity_threshold)
+        else:
+            activity_horizon = 0
+
+        channels = {}
+        channels_list = []
+        for channel in self.channels(hidden=1):
+            channels[channel] = template_info(channel, date_format)
+            channels_list.append(channels[channel])
+
+            # identify inactive feeds
+            if activity_horizon:
+                latest = channel.items(sorted=1)
+                if len(latest)==0 or latest[0].date < activity_horizon:
+                    channels[channel]["message"] = \
+                        "no activity in %d days" % activity_threshold
+
+            # report channel level errors
+            if not channel.url_status: continue
+            status = int(channel.url_status)
+            if status == 403:
+               channels[channel]["message"] = "403: forbidden"
+            elif status == 404:
+               channels[channel]["message"] = "404: not found"
+            elif status == 408:
+               channels[channel]["message"] = "408: request timeout"
+            elif status == 410:
+               channels[channel]["message"] = "410: gone"
+            elif status == 500:
+               channels[channel]["message"] = "internal server error"
+            elif status >= 400:
+               channels[channel]["message"] = "http status %s" % status
+
+        return channels, channels_list
+
+    def gather_items_info(self, channels, template_file="Planet", channel_list=None):
+        items_list = []
+        prev_date = []
+        prev_channel = None
+
+        date_format = self.tmpl_config_get(template_file,
+                                      "date_format", DATE_FORMAT, raw=1)
+        items_per_page = int(self.tmpl_config_get(template_file,
+                                      "items_per_page", ITEMS_PER_PAGE))
+        days_per_page = int(self.tmpl_config_get(template_file,
+                                      "days_per_page", DAYS_PER_PAGE))
+        new_date_format = self.tmpl_config_get(template_file,
+                                      "new_date_format", NEW_DATE_FORMAT, raw=1)
+
+        for newsitem in self.items(max_items=items_per_page,
+                                   max_days=days_per_page,
+                                   channels=channel_list):
+            item_info = template_info(newsitem, date_format)
+            chan_info = channels[newsitem._channel]
+            for k, v in chan_info.items():
+                item_info["channel_" + k] = v
+    
+            # Check for the start of a new day
+            if prev_date[:3] != newsitem.date[:3]:
+                prev_date = newsitem.date
+                item_info["new_date"] = time.strftime(new_date_format,
+                                                      newsitem.date)
+    
+            # Check for the start of a new channel
+            if item_info.has_key("new_date") \
+                   or prev_channel != newsitem._channel:
+                prev_channel = newsitem._channel
+                item_info["new_channel"] = newsitem._channel.url
+    
+            items_list.append(item_info)
+
+        return items_list
+
+    def run(self, planet_name, planet_link, template_files, offline = False):
+        log = logging.getLogger("planet.runner")
+
+        # Create a planet
+        log.info("Loading cached data")
+        if self.config.has_option("Planet", "cache_directory"):
+            self.cache_directory = self.config.get("Planet", "cache_directory")
+        if self.config.has_option("Planet", "new_feed_items"):
+            self.new_feed_items  = int(self.config.get("Planet", "new_feed_items"))
+        self.user_agent = "%s +%s %s" % (planet_name, planet_link,
+                                              self.user_agent)
+        if self.config.has_option("Planet", "filter"):
+            self.filter = self.config.get("Planet", "filter")
+
+        # The other configuration blocks are channels to subscribe to
+        for feed_url in self.config.sections():
+            if feed_url == "Planet" or feed_url in template_files:
+                continue
+
+            # Create a channel, configure it and subscribe it
+            channel = Channel(self, feed_url)
+            self.subscribe(channel)
+
+            # Update it
+            try:
+                if not offline and not channel.url_status == '410':
+                    channel.update()
+            except KeyboardInterrupt:
+                raise
+            except:
+                log.exception("Update of <%s> failed", feed_url)
+
+    def generate_all_files(self, template_files, planet_name,
+                planet_link, planet_feed, owner_name, owner_email):
+        
+        log = logging.getLogger("planet.runner")
+        # Go-go-gadget-template
+        for template_file in template_files:
+            manager = htmltmpl.TemplateManager()
+            log.info("Processing template %s", template_file)
+            template = manager.prepare(template_file)
+            # Read the configuration
+            output_dir = self.tmpl_config_get(template_file,
+                                         "output_dir", OUTPUT_DIR)
+            date_format = self.tmpl_config_get(template_file,
+                                          "date_format", DATE_FORMAT, raw=1)
+            encoding = self.tmpl_config_get(template_file, "encoding", ENCODING)
+        
+            # We treat each template individually
+            base = os.path.splitext(os.path.basename(template_file))[0]
+            url = os.path.join(planet_link, base)
+            output_file = os.path.join(output_dir, base)
+
+            # Gather information
+            channels, channels_list = self.gather_channel_info(template_file) 
+            items_list = self.gather_items_info(channels, template_file) 
+
+            # Gather item information
+    
+            # Process the template
+            tp = htmltmpl.TemplateProcessor(html_escape=0)
+            tp.set("Items", items_list)
+            tp.set("Channels", channels_list)
+        
+            # Generic information
+            tp.set("generator",   VERSION)
+            tp.set("name",        planet_name)
+            tp.set("link",        planet_link)
+            tp.set("owner_name",  owner_name)
+            tp.set("owner_email", owner_email)
+            tp.set("url",         url)
+        
+            if planet_feed:
+                tp.set("feed", planet_feed)
+                tp.set("feedtype", planet_feed.find('rss')>=0 and 'rss' or 'atom')
+            
+            # Update time
+            date = time.gmtime()
+            tp.set("date",        time.strftime(date_format, date))
+            tp.set("date_iso",    time.strftime(TIMEFMT_ISO, date))
+            tp.set("date_822",    time.strftime(TIMEFMT_822, date))
+
+            try:
+                log.info("Writing %s", output_file)
+                output_fd = open(output_file, "w")
+                if encoding.lower() in ("utf-8", "utf8"):
+                    # UTF-8 output is the default because we use that internally
+                    output_fd.write(tp.process(template))
+                elif encoding.lower() in ("xml", "html", "sgml"):
+                    # Magic for Python 2.3 users
+                    output = tp.process(template).decode("utf-8")
+                    output_fd.write(output.encode("ascii", "xmlcharrefreplace"))
+                else:
+                    # Must be a "known" encoding
+                    output = tp.process(template).decode("utf-8")
+                    output_fd.write(output.encode(encoding, "replace"))
+                output_fd.close()
+            except KeyboardInterrupt:
+                raise
+            except:
+                log.exception("Write of %s failed", output_file)
 
     def channels(self, hidden=0, sorted=1):
         """Return the list of channels."""
@@ -93,6 +327,10 @@ class Planet:
 
         return [ c[-1] for c in channels ]
 
+    def find_by_basename(self, basename):
+        for channel in self._channels:
+            if basename == channel.cache_basename(): return channel
+
     def subscribe(self, channel):
         """Subscribe the planet to the channel."""
         self._channels.append(channel)
@@ -101,7 +339,7 @@ class Planet:
         """Unsubscribe the planet from the channel."""
         self._channels.remove(channel)
 
-    def items(self, hidden=0, sorted=1, max_items=0, max_days=0):
+    def items(self, hidden=0, sorted=1, max_items=0, max_days=0, channels=None):
         """Return an optionally filtered list of items in the channel.
 
         The filters are applied in the following order:
@@ -134,7 +372,8 @@ class Planet:
             
         items = []
         seen_guids = {}
-        for channel in self.channels(hidden=hidden, sorted=0):
+        if not channels: channels=self.channels(hidden=hidden, sorted=0)
+        for channel in channels:
             for item in channel._items.values():
                 if hidden or not item.has_key("hidden"):
 
@@ -209,6 +448,7 @@ class Channel(cache.CachedInfo):
         url             URL of the feed.
         url_etag        E-Tag of the feed URL.
         url_modified    Last modified time of the feed URL.
+        url_status      Last HTTP status of the feed URL.
         hidden          Channel should be hidden (True if exists).
         name            Name of the feed owner, or feed title.
         next_order      Next order number to be assigned to NewsItem
@@ -251,7 +491,7 @@ class Channel(cache.CachedInfo):
     Some feeds may define additional properties to those above.
     """
     IGNORE_KEYS = ("links", "contributors", "textinput", "cloud", "categories",
-                   "url", "url_etag", "url_modified")
+                   "url", "href", "url_etag", "url_modified", "tags", "itunes_explicit")
 
     def __init__(self, planet, url):
         if not os.path.isdir(planet.cache_directory):
@@ -265,7 +505,10 @@ class Channel(cache.CachedInfo):
         self._planet = planet
         self._expired = []
         self.url = url
+        # retain the original URL for error reporting
+        self.configured_url = url
         self.url_etag = None
+        self.url_status = None
         self.url_modified = None
         self.name = None
         self.updated = None
@@ -275,6 +518,11 @@ class Channel(cache.CachedInfo):
         self.next_order = "0"
         self.cache_read()
         self.cache_read_entries()
+
+        if planet.config.has_section(url):
+            for option in planet.config.options(url):
+                value = planet.config.get(url, option)
+                self.set_as_string(option, value, cached=0)
 
     def has_item(self, id_):
         """Check whether the item exists in the channel."""
@@ -314,6 +562,9 @@ class Channel(cache.CachedInfo):
             item = NewsItem(self, key)
             self._items[key] = item
 
+    def cache_basename(self):
+        return cache.filename('',self._id)
+
     def cache_write(self, sync=1):
         """Write channel and item information to the cache."""
         for item in self._items.values():
@@ -324,6 +575,22 @@ class Channel(cache.CachedInfo):
 
         self._expired = []
 
+    def feed_information(self):
+        """
+        Returns a description string for the feed embedded in this channel.
+
+        This will usually simply be the feed url embedded in <>, but in the
+        case where the current self.url has changed from the original
+        self.configured_url the string will contain both pieces of information.
+        This is so that the URL in question is easier to find in logging
+        output: getting an error about a URL that doesn't appear in your config
+        file is annoying.
+        """
+        if self.url == self.configured_url:
+            return "<%s>" % self.url
+        else:
+            return "<%s> (formerly <%s>)" % (self.url, self.configured_url)
+
     def update(self):
         """Download the feed to refresh the information.
 
@@ -333,22 +600,37 @@ class Channel(cache.CachedInfo):
         info = feedparser.parse(self.url,
                                 etag=self.url_etag, modified=self.url_modified,
                                 agent=self._planet.user_agent)
-        if not info.has_key("status"):
-            log.info("Updating feed <%s>", self.url)
-        elif info.status == 301 or info.status == 302:
+        if info.has_key("status"):
+           self.url_status = str(info.status)
+        elif info.has_key("entries") and len(info.entries)>0:
+           self.url_status = str(200)
+        elif info.bozo and info.bozo_exception.__class__.__name__=='Timeout':
+           self.url_status = str(408)
+        else:
+           self.url_status = str(500)
+
+        if self.url_status == '301' and \
+           (info.has_key("entries") and len(info.entries)>0):
             log.warning("Feed has moved from <%s> to <%s>", self.url, info.url)
             os.link(cache.filename(self._planet.cache_directory, self.url),
                     cache.filename(self._planet.cache_directory, info.url))
             self.url = info.url
-        elif info.status == 304:
-            log.info("Feed <%s> unchanged", self.url)
+        elif self.url_status == '304':
+            log.info("Feed %s unchanged", self.feed_information())
             return
-        elif info.status >= 400:
-            log.error("Error %d while updating feed <%s>",
-                      info.status, self.url)
+        elif self.url_status == '410':
+            log.info("Feed %s gone", self.feed_information())
+            self.cache_write()
+            return
+        elif self.url_status == '408':
+            log.warning("Feed %s timed out", self.feed_information())
+            return
+        elif int(self.url_status) >= 400:
+            log.error("Error %s while updating feed %s",
+                      self.url_status, self.feed_information())
             return
         else:
-            log.info("Updating feed <%s>", self.url)
+            log.info("Updating feed %s", self.feed_information())
 
         self.url_etag = info.has_key("etag") and info.etag or None
         self.url_modified = info.has_key("modified") and info.modified or None
@@ -377,8 +659,13 @@ class Channel(cache.CachedInfo):
                 # Ignore unparsed date fields
                 pass
             elif key.endswith("_detail"):
-                # Ignore detail fields
-                pass
+                # retain name and  email sub-fields
+                if feed[key].has_key('name') and feed[key].name:
+                    self.set_as_string(key.replace("_detail","_name"), \
+                        feed[key].name)
+                if feed[key].has_key('email') and feed[key].email:
+                    self.set_as_string(key.replace("_detail","_email"), \
+                        feed[key].email)
             elif key == "items":
                 # Ignore items field
                 pass
@@ -398,9 +685,15 @@ class Channel(cache.CachedInfo):
                     self.set_as_string(key + "_width", str(feed[key].width))
                 if feed[key].has_key("height"):
                     self.set_as_string(key + "_height", str(feed[key].height))
-            else:
+            elif isinstance(feed[key], (str, unicode)):
                 # String fields
                 try:
+                    detail = key + '_detail'
+                    if feed.has_key(detail) and feed[detail].has_key('type'):
+                        if feed[detail].type == 'text/html':
+                            feed[key] = sanitize.HTML(feed[key])
+                        elif feed[detail].type == 'text/plain':
+                            feed[key] = xml.sax.saxutils.escape(feed[key])
                     self.set_as_string(key, feed[key])
                 except KeyboardInterrupt:
                     raise
@@ -476,7 +769,7 @@ class Channel(cache.CachedInfo):
                 break
             elif item.id in feed_items:
                 feed_count -= 1
-            else:
+            elif item._channel.url_status != '226':
                 del(self._items[item.id])
                 self._expired.append(item)
                 log.debug("Removed expired or replaced item <%s>", item.id)
@@ -497,6 +790,7 @@ class NewsItem(cache.CachedInfo):
 
     Properties:
         id              Channel-unique identifier for this item.
+        id_hash         Relatively short, printable cryptographic hash of id
         date            Corrected UTC-Normalised update time, for sorting.
         order           Order in which items on the same date can be sorted.
         hidden          Item should be hidden (True if exists).
@@ -527,13 +821,14 @@ class NewsItem(cache.CachedInfo):
     Some feeds may define additional properties to those above.
     """
     IGNORE_KEYS = ("categories", "contributors", "enclosures", "links",
-                   "guidislink", "date")
+                   "guidislink", "date", "tags")
 
     def __init__(self, channel, id_):
         cache.CachedInfo.__init__(self, channel._cache, id_)
 
         self._channel = channel
         self.id = id_
+        self.id_hash = md5.new(id_).hexdigest()
         self.date = None
         self.order = None
         self.content = None
@@ -549,8 +844,18 @@ class NewsItem(cache.CachedInfo):
                 # Ignore unparsed date fields
                 pass
             elif key.endswith("_detail"):
-                # Ignore detail fields
-                pass
+                # retain name, email, and language sub-fields
+                if entry[key].has_key('name') and entry[key].name:
+                    self.set_as_string(key.replace("_detail","_name"), \
+                        entry[key].name)
+                if entry[key].has_key('email') and entry[key].email:
+                    self.set_as_string(key.replace("_detail","_email"), \
+                        entry[key].email)
+                if entry[key].has_key('language') and entry[key].language and \
+                   (not self._channel.has_key('language') or \
+                   entry[key].language != self._channel.language):
+                    self.set_as_string(key.replace("_detail","_language"), \
+                        entry[key].language)
             elif key.endswith("_parsed"):
                 # Date fields
                 if entry[key] is not None:
@@ -565,11 +870,26 @@ class NewsItem(cache.CachedInfo):
                 # Content field: concatenate the values
                 value = ""
                 for item in entry[key]:
+                    if item.type == 'text/html':
+                        item.value = sanitize.HTML(item.value)
+                    elif item.type == 'text/plain':
+                        item.value = xml.sax.saxutils.escape(item.value)
+                    if item.has_key('language') and item.language and \
+                       (not self._channel.has_key('language') or
+                       item.language != self._channel.language) :
+                        self.set_as_string(key + "_language", item.language)
                     value += cache.utf8(item.value)
                 self.set_as_string(key, value)
-            else:
+            elif isinstance(entry[key], (str, unicode)):
                 # String fields
                 try:
+                    detail = key + '_detail'
+                    if entry.has_key(detail):
+                        if entry[detail].has_key('type'):
+                            if entry[detail].type == 'text/html':
+                                entry[key] = sanitize.HTML(entry[key])
+                            elif entry[detail].type == 'text/plain':
+                                entry[key] = xml.sax.saxutils.escape(entry[key])
                     self.set_as_string(key, entry[key])
                 except KeyboardInterrupt:
                     raise
@@ -593,10 +913,8 @@ class NewsItem(cache.CachedInfo):
         entries appear in posting sequence but don't overlap entries
         added in previous updates and don't creep into the next one.
         """
-        if self.has_key(key) and self.key_type(key) != self.NULL:
-            return self.get_as_date(key)
 
-        for other_key in ("modified", "issued", "created"):
+        for other_key in ("updated", "modified", "published", "issued", "created"):
             if self.has_key(other_key):
                 date = self.get_as_date(other_key)
                 break
@@ -606,8 +924,10 @@ class NewsItem(cache.CachedInfo):
         if date is not None:
             if date > self._channel.updated:
                 date = self._channel.updated
-            elif date < self._channel.last_updated:
-                date = self._channel.updated
+#            elif date < self._channel.last_updated:
+#                date = self._channel.updated
+        elif self.has_key(key) and self.key_type(key) != self.NULL:
+            return self.get_as_date(key)
         else:
             date = self._channel.updated
 

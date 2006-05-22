@@ -13,6 +13,7 @@ import os
 import sys
 import time
 import dbhash
+import ConfigParser
 
 import planet
 
@@ -126,7 +127,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Now do it the right way :-)
-    my_planet = planet.Planet()
+    my_planet = planet.Planet(ConfigParser.ConfigParser())
     my_planet.cache_directory = os.path.dirname(cache_file)
     channel = planet.Channel(my_planet, url)
 

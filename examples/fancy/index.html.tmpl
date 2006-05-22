@@ -16,6 +16,9 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="generator" content="<TMPL_VAR generator ESCAPE="HTML">">
 <link rel="stylesheet" href="planet.css" type="text/css">
+<TMPL_IF feedtype>
+<link rel="alternate" href="<TMPL_VAR feed ESCAPE="HTML">" title="<TMPL_VAR channel_title_plain ESCAPE="HTML">" type="application/<TMPL_VAR feedtype>+xml">
+</TMPL_IF>
 </head>
 
 <body>
@@ -46,19 +49,19 @@
 ### doesn't know about the "face", "facewidth" and "faceheight" configuration
 ### variables, but makes them available to us anyway.
 
-<h3><a href="<TMPL_VAR channel_link ESCAPE="HTML">" title="<TMPL_VAR channel_title ESCAPE="HTML">"><TMPL_VAR channel_name></a></h3>
+<h3><a href="<TMPL_VAR channel_link ESCAPE="HTML">" title="<TMPL_VAR channel_title_plain ESCAPE="HTML">"><TMPL_VAR channel_name></a></h3>
 <TMPL_IF channel_face>
 <img class="face" src="images/<TMPL_VAR channel_face ESCAPE="HTML">" width="<TMPL_VAR channel_facewidth ESCAPE="HTML">" height="<TMPL_VAR channel_faceheight ESCAPE="HTML">" alt="">
 </TMPL_IF>
 </TMPL_IF>
 
 
-<div class="entrygroup" id="<TMPL_VAR id>">
+<div class="entrygroup" id="<TMPL_VAR id>"<TMPL_IF channel_language> lang="<TMPL_VAR channel_language>"</TMPL_IF>>
 <TMPL_IF title>
-<h4><a href="<TMPL_VAR link ESCAPE="HTML">"><TMPL_VAR title></a></h4>
+<h4<TMPL_IF title_language> lang="<TMPL_VAR title_language>"</TMPL_IF>><a href="<TMPL_VAR link ESCAPE="HTML">"><TMPL_VAR title></a></h4>
 </TMPL_IF>
 <div class="entry">
-<div>
+<div class="content"<TMPL_IF content_language> lang="<TMPL_VAR content_language>"</TMPL_IF>>
 <TMPL_VAR content>
 </div>
 
@@ -89,7 +92,9 @@
 <h2>Subscriptions</h2>
 <ul>
 <TMPL_LOOP Channels>
-<li><a href="<TMPL_VAR link ESCAPE="HTML">" title="<TMPL_VAR title ESCAPE="HTML">"><TMPL_VAR name></a> <a href="<TMPL_VAR url ESCAPE="HTML">">(feed)</a></li>
+<li>
+<a href="<TMPL_VAR url ESCAPE="HTML">" title="subscribe"><img src="images/feed-icon-10x10.png" alt="(feed)"></a> <a <TMPL_IF link>href="<TMPL_VAR link ESCAPE="HTML">" </TMPL_IF><TMPL_IF message>class="message" title="<TMPL_VAR message ESCAPE="HTML">"</TMPL_IF><TMPL_UNLESS message>title="<TMPL_VAR title_plain ESCAPE="HTML">"</TMPL_UNLESS>><TMPL_VAR name></a>
+</li>
 </TMPL_LOOP>
 </ul>
 
