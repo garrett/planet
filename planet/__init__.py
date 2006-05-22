@@ -763,6 +763,7 @@ class NewsItem(cache.CachedInfo):
 
     Properties:
         id              Channel-unique identifier for this item.
+        id_hash         Relatively short, printable cryptographic hash of id
         date            Corrected UTC-Normalised update time, for sorting.
         order           Order in which items on the same date can be sorted.
         hidden          Item should be hidden (True if exists).
@@ -800,6 +801,7 @@ class NewsItem(cache.CachedInfo):
 
         self._channel = channel
         self.id = id_
+        self.id_hash = md5.new(id_).hexdigest()
         self.date = None
         self.order = None
         self.content = None
