@@ -886,8 +886,6 @@ class NewsItem(cache.CachedInfo):
         entries appear in posting sequence but don't overlap entries
         added in previous updates and don't creep into the next one.
         """
-        if self.has_key(key) and self.key_type(key) != self.NULL:
-            return self.get_as_date(key)
 
         for other_key in ("updated", "modified", "published", "issued", "created"):
             if self.has_key(other_key):

@@ -124,12 +124,23 @@ def main():
     planet.logging.basicConfig()
     planet.logging.getLogger().setLevel(planet.logging.getLevelName(log_level))
     log = planet.logging.getLogger("planet.runner")
+    try:
+        log.warning
+    except:
+        log.warning = log.warn
 
     # timeoutsocket allows feedparser to time out rather than hang forever on
     # ultra-slow servers.  Python 2.3 now has this functionality available in
     # the standard socket library, so under 2.3 you don't need to install
     # anything.  But you probably should anyway, because the socket module is
     # buggy and timeoutsocket is better.
+    if feed_timeout:
+        try:
+            feed_timeout = float(feed_timeout)
+        except:
+            log.warning("Feed timeout set to invalid value '%s', skipping", feed_timeout)
+            feed_timeout = None
+
     if feed_timeout and not offline:
         try:
             from planet import timeoutsocket

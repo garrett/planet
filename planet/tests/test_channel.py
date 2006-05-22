@@ -3,6 +3,7 @@
 import unittest
 import planet
 import tempfile
+import ConfigParser
 
 class FakePlanet:
     """
@@ -12,6 +13,7 @@ class FakePlanet:
 
     def __init__(self):
         self.cache_directory = tempfile.gettempdir()
+        self.config = ConfigParser.ConfigParser()
 
 class FeedInformationTest(unittest.TestCase):
     """
