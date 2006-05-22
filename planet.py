@@ -104,7 +104,21 @@ def main():
 
     # Define locale
     if config.has_option("Planet", "locale"):
-        locale.setlocale(locale.LC_ALL, config.get("Planet", "locale"))
+        # The user can specify more than one locale (separated by ":") as
+        # fallbacks.
+        locale_ok = False
+        for user_locale in config.get("Planet", "locale").split(':'):
+            user_locale = user_locale.strip()
+            try:
+                locale.setlocale(locale.LC_ALL, user_locale)
+            except locale.Error:
+                pass
+            else:
+                locale_ok = True
+                break
+        if not locale_ok:
+            print >>sys.stderr, "Unsupported locale setting."
+            sys.exit(1)
 
     # Activate logging
     planet.logging.basicConfig()
