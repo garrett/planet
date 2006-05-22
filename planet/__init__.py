@@ -97,17 +97,6 @@ def template_info(item, date_format):
     return info
 
 
-def tmpl_config_get(config, template, option, default=None, raw=0, vars=None):
-    """Get a template value from the configuration, with a default."""
-    if config.has_option(template, option):
-        return config.get(template, option, raw=raw, vars=None)
-    elif config.has_option("Planet", option):
-        return config.get("Planet", option, raw=raw, vars=None)
-    else:
-        return default
-
-
-
 class Planet:
     """A set of channels.
 
@@ -121,7 +110,9 @@ class Planet:
         filter          A regular expression that articles must match.
         exclude         A regular expression that articles must not match.
     """
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
+
         self._channels = []
 
         self.user_agent = USER_AGENT
@@ -130,30 +121,119 @@ class Planet:
         self.filter = None
         self.exclude = None
 
-    def run(self, config, planet_name, planet_link, template_files, offline = False):
+    def tmpl_config_get(self, template, option, default=None, raw=0, vars=None):
+        """Get a template value from the configuration, with a default."""
+        if self.config.has_option(template, option):
+            return self.config.get(template, option, raw=raw, vars=None)
+        elif self.config.has_option("Planet", option):
+            return self.config.get("Planet", option, raw=raw, vars=None)
+        else:
+            return default
+
+    def gather_channel_info(self, template_file="Planet"):
+        date_format = self.tmpl_config_get(template_file,
+                                      "date_format", DATE_FORMAT, raw=1)
+
+        activity_threshold = int(self.tmpl_config_get(template_file,
+                                            "activity_threshold",
+                                            ACTIVITY_THRESHOLD))
+
+        if activity_threshold:
+            activity_horizon = \
+                time.gmtime(time.time()-86400*activity_threshold)
+        else:
+            activity_horizon = 0
+
+        channels = {}
+        channels_list = []
+        for channel in self.channels(hidden=1):
+            channels[channel] = template_info(channel, date_format)
+            channels_list.append(channels[channel])
+
+            # identify inactive feeds
+            if activity_horizon:
+                latest = channel.items(sorted=1)
+                if len(latest)==0 or latest[0].date < activity_horizon:
+                    channels[channel]["message"] = \
+                        "no activity in %d days" % activity_threshold
+
+            # report channel level errors
+            if not channel.url_status: continue
+            status = int(channel.url_status)
+            if status == 403:
+               channels[channel]["message"] = "403: forbidden"
+            elif status == 404:
+               channels[channel]["message"] = "404: not found"
+            elif status == 408:
+               channels[channel]["message"] = "408: request timeout"
+            elif status == 410:
+               channels[channel]["message"] = "410: gone"
+            elif status == 500:
+               channels[channel]["message"] = "internal server error"
+            elif status >= 400:
+               channels[channel]["message"] = "http status %s" % status
+
+        return channels, channels_list
+
+    def gather_items_info(self, channels, template_file="Planet", channel_list=None):
+        items_list = []
+        prev_date = []
+        prev_channel = None
+
+        date_format = self.tmpl_config_get(template_file,
+                                      "date_format", DATE_FORMAT, raw=1)
+        items_per_page = int(self.tmpl_config_get(template_file,
+                                      "items_per_page", ITEMS_PER_PAGE))
+        days_per_page = int(self.tmpl_config_get(template_file,
+                                      "days_per_page", DAYS_PER_PAGE))
+        new_date_format = self.tmpl_config_get(template_file,
+                                      "new_date_format", NEW_DATE_FORMAT, raw=1)
+
+        for newsitem in self.items(max_items=items_per_page,
+                                   max_days=days_per_page,
+                                   channels=channel_list):
+            item_info = template_info(newsitem, date_format)
+            chan_info = channels[newsitem._channel]
+            for k, v in chan_info.items():
+                item_info["channel_" + k] = v
+    
+            # Check for the start of a new day
+            if prev_date[:3] != newsitem.date[:3]:
+                prev_date = newsitem.date
+                item_info["new_date"] = time.strftime(new_date_format,
+                                                      newsitem.date)
+    
+            # Check for the start of a new channel
+            if item_info.has_key("new_date") \
+                   or prev_channel != newsitem._channel:
+                prev_channel = newsitem._channel
+                item_info["new_channel"] = newsitem._channel.url
+    
+            items_list.append(item_info)
+
+        return items_list
+
+    def run(self, planet_name, planet_link, template_files, offline = False):
         log = logging.getLogger("planet.runner")
 
         # Create a planet
         log.info("Loading cached data")
-        if config.has_option("Planet", "cache_directory"):
-            self.cache_directory = config.get("Planet", "cache_directory")
-        if config.has_option("Planet", "new_feed_items"):
-            self.new_feed_items  = int(config.get("Planet", "new_feed_items"))
+        if self.config.has_option("Planet", "cache_directory"):
+            self.cache_directory = self.config.get("Planet", "cache_directory")
+        if self.config.has_option("Planet", "new_feed_items"):
+            self.new_feed_items  = int(self.config.get("Planet", "new_feed_items"))
         self.user_agent = "%s +%s %s" % (planet_name, planet_link,
                                               self.user_agent)
-        if config.has_option("Planet", "filter"):
-            self.filter = config.get("Planet", "filter")
+        if self.config.has_option("Planet", "filter"):
+            self.filter = self.config.get("Planet", "filter")
 
         # The other configuration blocks are channels to subscribe to
-        for feed_url in config.sections():
+        for feed_url in self.config.sections():
             if feed_url == "Planet" or feed_url in template_files:
                 continue
 
             # Create a channel, configure it and subscribe it
             channel = Channel(self, feed_url)
-            for option in config.options(feed_url):
-                value = config.get(feed_url, option)
-                channel.set_as_string(option, value, cached=0)
             self.subscribe(channel)
 
             # Update it
@@ -165,7 +245,7 @@ class Planet:
             except:
                 log.exception("Update of <%s> failed", feed_url)
 
-    def generate_all_files(self, template_files, config, planet_name,
+    def generate_all_files(self, template_files, planet_name,
                 planet_link, planet_feed, owner_name, owner_email):
         
         log = logging.getLogger("planet.runner")
@@ -175,88 +255,22 @@ class Planet:
             log.info("Processing template %s", template_file)
             template = manager.prepare(template_file)
             # Read the configuration
-            output_dir = tmpl_config_get(config, template_file,
+            output_dir = self.tmpl_config_get(template_file,
                                          "output_dir", OUTPUT_DIR)
-            date_format = tmpl_config_get(config, template_file,
+            date_format = self.tmpl_config_get(template_file,
                                           "date_format", DATE_FORMAT, raw=1)
-            new_date_format = tmpl_config_get(config, template_file,
-                                              "new_date_format", NEW_DATE_FORMAT,
-                                              raw=1)
-            encoding = tmpl_config_get(config, template_file, "encoding", ENCODING)
-            items_per_page = int(tmpl_config_get(config, template_file,
-                                                 "items_per_page", ITEMS_PER_PAGE))
-            days_per_page = int(tmpl_config_get(config, template_file,
-                                                "days_per_page", DAYS_PER_PAGE))
+            encoding = self.tmpl_config_get(template_file, "encoding", ENCODING)
         
-            activity_threshold = int(tmpl_config_get(config, template_file,
-                                                "activity_threshold",
-                                                ACTIVITY_THRESHOLD))
-
-            if activity_threshold:
-                activity_horizon = \
-                    time.gmtime(time.time()-86400*activity_threshold)
-            else:
-                activity_horizon = 0
-
             # We treat each template individually
             base = os.path.splitext(os.path.basename(template_file))[0]
             url = os.path.join(planet_link, base)
             output_file = os.path.join(output_dir, base)
-        
-            # Gather channel information
-            channels = {}
-            channels_list = []
-            for channel in self.channels(hidden=1):
-                channels[channel] = template_info(channel, date_format)
-                channels_list.append(channels[channel])
 
-                # identify inactive feeds
-                if activity_horizon:
-                    latest = channel.items(sorted=1)
-                    if len(latest)==0 or latest[0].date < activity_horizon:
-                        channels[channel]["message"] = \
-                            "no activity in %d days" % activity_threshold
-
-                # report channel level errors
-                if not channel.url_status: continue
-                status = int(channel.url_status)
-                if status == 403:
-                   channels[channel]["message"] = "403: forbidden"
-                elif status == 404:
-                   channels[channel]["message"] = "404: not found"
-                elif status == 408:
-                   channels[channel]["message"] = "408: request timeout"
-                elif status == 410:
-                   channels[channel]["message"] = "410: gone"
-                elif status == 500:
-                   channels[channel]["message"] = "internal server error"
-                elif status >= 400:
-                   channels[channel]["message"] = "http status %s" % status
+            # Gather information
+            channels, channels_list = self.gather_channel_info(template_file) 
+            items_list = self.gather_items_info(channels, template_file) 
 
             # Gather item information
-            items_list = []
-            prev_date = []
-            prev_channel = None
-            for newsitem in self.items(max_items=items_per_page,
-                                            max_days=days_per_page):
-                item_info = template_info(newsitem, date_format)
-                chan_info = channels[newsitem._channel]
-                for k, v in chan_info.items():
-                    item_info["channel_" + k] = v
-        
-                # Check for the start of a new day
-                if prev_date[:3] != newsitem.date[:3]:
-                    prev_date = newsitem.date
-                    item_info["new_date"] = time.strftime(new_date_format,
-                                                          newsitem.date)
-        
-                # Check for the start of a new channel
-                if item_info.has_key("new_date") \
-                       or prev_channel != newsitem._channel:
-                    prev_channel = newsitem._channel
-                    item_info["new_channel"] = newsitem._channel.url
-        
-                items_list.append(item_info)
     
             # Process the template
             tp = htmltmpl.TemplateProcessor(html_escape=0)
@@ -313,6 +327,10 @@ class Planet:
 
         return [ c[-1] for c in channels ]
 
+    def find_by_basename(self, basename):
+        for channel in self._channels:
+            if basename == channel.cache_basename(): return channel
+
     def subscribe(self, channel):
         """Subscribe the planet to the channel."""
         self._channels.append(channel)
@@ -321,7 +339,7 @@ class Planet:
         """Unsubscribe the planet from the channel."""
         self._channels.remove(channel)
 
-    def items(self, hidden=0, sorted=1, max_items=0, max_days=0):
+    def items(self, hidden=0, sorted=1, max_items=0, max_days=0, channels=None):
         """Return an optionally filtered list of items in the channel.
 
         The filters are applied in the following order:
@@ -354,7 +372,8 @@ class Planet:
             
         items = []
         seen_guids = {}
-        for channel in self.channels(hidden=hidden, sorted=0):
+        if not channels: channels=self.channels(hidden=hidden, sorted=0)
+        for channel in channels:
             for item in channel._items.values():
                 if hidden or not item.has_key("hidden"):
 
@@ -500,6 +519,11 @@ class Channel(cache.CachedInfo):
         self.cache_read()
         self.cache_read_entries()
 
+        if planet.config.has_section(url):
+            for option in planet.config.options(url):
+                value = planet.config.get(url, option)
+                self.set_as_string(option, value, cached=0)
+
     def has_item(self, id_):
         """Check whether the item exists in the channel."""
         return self._items.has_key(id_)
@@ -537,6 +561,9 @@ class Channel(cache.CachedInfo):
 
             item = NewsItem(self, key)
             self._items[key] = item
+
+    def cache_basename(self):
+        return cache.filename('',self._id)
 
     def cache_write(self, sync=1):
         """Write channel and item information to the cache."""

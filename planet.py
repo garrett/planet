@@ -155,11 +155,12 @@ def main():
             else:
                 log.error("Unable to set timeout to %d seconds", feed_timeout)
 
-    my_planet = planet.Planet()
-    my_planet.run(config, planet_name, planet_link, template_files, offline)
-    my_planet.generate_all_files(template_files, config, planet_name, planet_link, planet_feed,
-            owner_name, owner_email)
+    # run the planet
+    my_planet = planet.Planet(config)
+    my_planet.run(planet_name, planet_link, template_files, offline)
 
+    my_planet.generate_all_files(template_files, planet_name,
+        planet_link, planet_feed, owner_name, owner_email)
 
 
 if __name__ == "__main__":

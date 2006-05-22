@@ -8,16 +8,16 @@ class MainTest(unittest.TestCase):
     
     def test_minimal(self):
         configp = ConfigParser()
-        my_planet = planet.Planet()
-        my_planet.run(configp, "Planet Name", "http://example.com", [])
+        my_planet = planet.Planet(configp)
+        my_planet.run("Planet Name", "http://example.com", [])
 
     def test_onefeed(self):
         configp = ConfigParser()
         configp.readfp(StringIO("""[http://www.example.com/]
 name = Mary
 """))
-        my_planet = planet.Planet()
-        my_planet.run(configp, "Planet Name", "http://example.com", [], True)
+        my_planet = planet.Planet(configp)
+        my_planet.run("Planet Name", "http://example.com", [], True)
 
 
     def test_generateall(self):
@@ -25,14 +25,14 @@ name = Mary
         configp.readfp(StringIO("""[http://www.example.com/]
 name = Mary
 """))
-        my_planet = planet.Planet()
-        my_planet.run(configp, "Planet Name", "http://example.com", [], True)
+        my_planet = planet.Planet(configp)
+        my_planet.run("Planet Name", "http://example.com", [], True)
         basedir = os.path.dirname(os.path.abspath(sys.modules[__name__].__file__))
         os.mkdir(self.output_dir)
         t_file_names = ['simple', 'simple2']
         self._remove_cached_templates(basedir, t_file_names)
         t_files = [os.path.join(basedir, t_file) + '.tmpl' for t_file in t_file_names]
-        my_planet.generate_all_files(t_files, configp, "Planet Name",
+        my_planet.generate_all_files(t_files, "Planet Name",
                 'http://example.com/', 'http://example.com/feed/', 'Mary', 'mary@example.com')
         for file_name in t_file_names:
             name = os.path.join(self.output_dir, file_name)
