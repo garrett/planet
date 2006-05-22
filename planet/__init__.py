@@ -899,6 +899,8 @@ class NewsItem(cache.CachedInfo):
                 date = self._channel.updated
 #            elif date < self._channel.last_updated:
 #                date = self._channel.updated
+        elif self.has_key(key) and self.key_type(key) != self.NULL:
+            return self.get_as_date(key)
         else:
             date = self._channel.updated
 
