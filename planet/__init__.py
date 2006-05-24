@@ -255,7 +255,7 @@ class Planet:
             log.info("Processing template %s", template_file)
             try:
                 template = manager.prepare(template_file)
-            except TemplateError:
+            except planet.htmltmpl.TemplateError:
                 template = manager.prepare(os.path.basename(template_file))
             # Read the configuration
             output_dir = self.tmpl_config_get(template_file,
