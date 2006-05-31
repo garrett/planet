@@ -615,8 +615,11 @@ class Channel(cache.CachedInfo):
         if self.url_status == '301' and \
            (info.has_key("entries") and len(info.entries)>0):
             log.warning("Feed has moved from <%s> to <%s>", self.url, info.url)
-            os.link(cache.filename(self._planet.cache_directory, self.url),
-                    cache.filename(self._planet.cache_directory, info.url))
+            try:
+                os.link(cache.filename(self._planet.cache_directory, self.url),
+                        cache.filename(self._planet.cache_directory, info.url))
+            except:
+                pass
             self.url = info.url
         elif self.url_status == '304':
             log.info("Feed %s unchanged", self.feed_information())
