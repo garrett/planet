@@ -34,8 +34,12 @@ import md5
 import time
 import dbhash
 import re
-import xml.sax.saxutils
 
+try: 
+    from xml.sax.saxutils import escape
+except:
+    def escape(data):
+        return data.replace("&","&amp;").replace(">","&gt;").replace("<","&lt;")
 
 # Version information (for generator headers)
 VERSION = ("Planet/%s +http://www.planetplanet.org" % __version__)
@@ -699,7 +703,7 @@ class Channel(cache.CachedInfo):
                         if feed[detail].type == 'text/html':
                             feed[key] = sanitize.HTML(feed[key])
                         elif feed[detail].type == 'text/plain':
-                            feed[key] = xml.sax.saxutils.escape(feed[key])
+                            feed[key] = escape(feed[key])
                     self.set_as_string(key, feed[key])
                 except KeyboardInterrupt:
                     raise
@@ -879,7 +883,7 @@ class NewsItem(cache.CachedInfo):
                     if item.type == 'text/html':
                         item.value = sanitize.HTML(item.value)
                     elif item.type == 'text/plain':
-                        item.value = xml.sax.saxutils.escape(item.value)
+                        item.value = escape(item.value)
                     if item.has_key('language') and item.language and \
                        (not self._channel.has_key('language') or
                        item.language != self._channel.language) :
@@ -895,7 +899,7 @@ class NewsItem(cache.CachedInfo):
                             if entry[detail].type == 'text/html':
                                 entry[key] = sanitize.HTML(entry[key])
                             elif entry[detail].type == 'text/plain':
-                                entry[key] = xml.sax.saxutils.escape(entry[key])
+                                entry[key] = escape(entry[key])
                     self.set_as_string(key, entry[key])
                 except KeyboardInterrupt:
                     raise
