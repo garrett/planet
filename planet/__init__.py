@@ -34,8 +34,12 @@ import md5
 import time
 import dbhash
 import re
-import xml.sax.saxutils
 
+try: 
+    from xml.sax.saxutils import escape
+except:
+    def escape(data):
+        return data.replace("&","&amp;").replace(">","&gt;").replace("<","&lt;")
 
 # Version information (for generator headers)
 VERSION = ("Planet/%s +http://www.planetplanet.org" % __version__)
@@ -253,7 +257,10 @@ class Planet:
         for template_file in template_files:
             manager = htmltmpl.TemplateManager()
             log.info("Processing template %s", template_file)
-            template = manager.prepare(template_file)
+            try:
+                template = manager.prepare(template_file)
+            except htmltmpl.TemplateError:
+                template = manager.prepare(os.path.basename(template_file))
             # Read the configuration
             output_dir = self.tmpl_config_get(template_file,
                                          "output_dir", OUTPUT_DIR)
@@ -612,8 +619,11 @@ class Channel(cache.CachedInfo):
         if self.url_status == '301' and \
            (info.has_key("entries") and len(info.entries)>0):
             log.warning("Feed has moved from <%s> to <%s>", self.url, info.url)
-            os.link(cache.filename(self._planet.cache_directory, self.url),
-                    cache.filename(self._planet.cache_directory, info.url))
+            try:
+                os.link(cache.filename(self._planet.cache_directory, self.url),
+                        cache.filename(self._planet.cache_directory, info.url))
+            except:
+                pass
             self.url = info.url
         elif self.url_status == '304':
             log.info("Feed %s unchanged", self.feed_information())
@@ -693,7 +703,7 @@ class Channel(cache.CachedInfo):
                         if feed[detail].type == 'text/html':
                             feed[key] = sanitize.HTML(feed[key])
                         elif feed[detail].type == 'text/plain':
-                            feed[key] = xml.sax.saxutils.escape(feed[key])
+                            feed[key] = escape(feed[key])
                     self.set_as_string(key, feed[key])
                 except KeyboardInterrupt:
                     raise
@@ -873,7 +883,7 @@ class NewsItem(cache.CachedInfo):
                     if item.type == 'text/html':
                         item.value = sanitize.HTML(item.value)
                     elif item.type == 'text/plain':
-                        item.value = xml.sax.saxutils.escape(item.value)
+                        item.value = escape(item.value)
                     if item.has_key('language') and item.language and \
                        (not self._channel.has_key('language') or
                        item.language != self._channel.language) :
@@ -889,7 +899,7 @@ class NewsItem(cache.CachedInfo):
                             if entry[detail].type == 'text/html':
                                 entry[key] = sanitize.HTML(entry[key])
                             elif entry[detail].type == 'text/plain':
-                                entry[key] = xml.sax.saxutils.escape(entry[key])
+                                entry[key] = escape(entry[key])
                     self.set_as_string(key, entry[key])
                 except KeyboardInterrupt:
                     raise

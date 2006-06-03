@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<rss version="2.0">
 
 <channel>
 	<title><TMPL_VAR name></title>
@@ -16,8 +16,12 @@
 	<description><TMPL_VAR content ESCAPE="HTML"></description>
 	</TMPL_IF>
 	<pubDate><TMPL_VAR date_822></pubDate>
-	<TMPL_IF author>
-	<dc:creator><TMPL_VAR author></dc:creator>
+	<TMPL_IF author_email>
+	<TMPL_IF author_name>
+	<author><TMPL_VAR author_email> (<TMPL_VAR author_name>)</author>
+	<TMPL_ELSE>
+	<author><TMPL_VAR author_email></author>
+	</TMPL_IF>
 	</TMPL_IF>
 </item>
 </TMPL_LOOP>
