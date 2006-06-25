@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import glob, trace, unittest
 
 # find all of the planet test modules
