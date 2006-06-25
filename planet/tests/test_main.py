@@ -27,7 +27,7 @@ name = Mary
 """))
         my_planet = planet.Planet(configp)
         my_planet.run("Planet Name", "http://example.com", [], True)
-        basedir = os.path.dirname(os.path.abspath(sys.modules[__name__].__file__))
+        basedir = os.path.join(os.path.dirname(os.path.abspath(sys.modules[__name__].__file__)), 'data')
         os.mkdir(self.output_dir)
         t_file_names = ['simple', 'simple2']
         self._remove_cached_templates(basedir, t_file_names)
