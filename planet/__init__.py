@@ -30,7 +30,7 @@ __all__ = ("cache", "feedparser", "htmltmpl", "logging",
 
 
 import os
-import md5
+import hashlib
 import time
 import dbhash
 import re
@@ -742,10 +742,10 @@ class Channel(cache.CachedInfo):
                 entry_id = cache.utf8(entry.link)
             elif entry.has_key("title"):
                 entry_id = (self.url + "/"
-                            + md5.new(cache.utf8(entry.title)).hexdigest())
+                            + hashlib.md5(cache.utf8(entry.title)).hexdigest())
             elif entry.has_key("summary"):
                 entry_id = (self.url + "/"
-                            + md5.new(cache.utf8(entry.summary)).hexdigest())
+                            + hashlib.md5(cache.utf8(entry.summary)).hexdigest())
             else:
                 log.error("Unable to find or generate id, entry ignored")
                 continue
@@ -838,7 +838,7 @@ class NewsItem(cache.CachedInfo):
 
         self._channel = channel
         self.id = id_
-        self.id_hash = md5.new(id_).hexdigest()
+        self.id_hash = hashlib.md5(id_).hexdigest()
         self.date = None
         self.order = None
         self.content = None
